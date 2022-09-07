@@ -36,15 +36,12 @@ else:
     mutations = utils.parse_mut(args)
     # Check out dir
     utils.check_create_dir(args.out_dir)
-    # Parse reference sequence
-    l_ref_sequence, header, ref_sequence = utils.parse_ref_genome(args)
     # alignment out_file
     out_aln = open(args.out_dir + "/" + args.out_name + "_aln.fasta", "w")
-    to_write = header + "\n" + ref_sequence + "\n" 
     # parse coverage to dictionary
     cov_d = utils.parse_coverage_file(args)
 
-
+to_write = ""
 for file in args.tsv_file:
 
     # Parse reference sequence
@@ -52,7 +49,7 @@ for file in args.tsv_file:
 
     # Filter SNVs with a ALT_DP < min_freq
     # Add genome SNV genome location
-    df = utils.filter_tsv(args, file, drop_features=True, filter_NoHTZ=False)
+    df = utils.filter_tsv(args, file, drop_features=True)
 
     # Label SNVs to lineage
     df["LINEAGE"] = utils.indetify_variants(df, mutations)
@@ -104,6 +101,8 @@ for file in args.tsv_file:
     # Write alignment
     to_write += ">" + name_file + "\n" + "".join(l_ref_sequence) + "\n"
 
+reference = header + "\n" + ref_sequence + "\n" 
+out_aln.write(reference)
 out_aln.write(to_write)
 out_aln.close()
 

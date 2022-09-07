@@ -4,11 +4,10 @@ import numpy as np
 from pandarallel import pandarallel
 import dataframe_image as dfi
 import multiprocessing
-
-# Global variables
 nproc = multiprocessing.cpu_count()
 pandarallel.initialize(nb_workers=nproc)
 
+# check if directory exists
 def check_create_dir(path):
 
     if os.path.exists(path):
@@ -16,9 +15,32 @@ def check_create_dir(path):
     else:
         os.mkdir(path)
 
+# check initial arguments
 def check_argmunets(args):
 
+    # Same number cov and tsv files
+    if len(args.tsv_file) != len(args.cov_file):
+        print("Not equal number of tsv and cov files provided")
+        return 1
+    
+    # Check mutation directory
+    elif not os.path.isfile(args.mut_dir):
+        return 1
+    
+    # Check reference genome
+    elif not os.path.isfile(args.ref_genome):
+        return 1
+    
+    # Check tsv files
     for file in args.tsv_file:
+        if not os.path.isfile(file):
+            print("%s: No such file or directory" %file)
+            return 1
+        else:
+            return 0
+    
+    # Check cov files
+    for file in args.cov_file:
         if not os.path.isfile(file):
             print("%s: No such file or directory" %file)
             return 1
@@ -26,6 +48,7 @@ def check_argmunets(args):
             return 0
 
 def parse_ref_genome(args):
+
     # reference fasta
     fasta_ref = open(args.ref_genome, "r")
     ref_sequence = ""
@@ -35,6 +58,7 @@ def parse_ref_genome(args):
             ref_sequence += line.strip()
         else:
             header = line.strip().split(" ")[0]
+
     # reference genome
     l_ref_sequence = list(ref_sequence)
     fasta_ref.close()
@@ -67,7 +91,7 @@ def pos_to_gen(pos):
         return "ORF10" # "ORF10":[29558, 29674]
 
 
-def filter_tsv(args, file, drop_features=True, filter_NoHTZ=True):
+def filter_tsv(args, file, drop_features=True):
 
     # Read tsv
     df = pd.read_csv(file, sep=args.file_sep)
@@ -77,13 +101,6 @@ def filter_tsv(args, file, drop_features=True, filter_NoHTZ=True):
 
     # Select SNPs >= min_DP_freq
     df = df[df.TOTAL_DP >= args.min_DP_freq]
-
-    if filter_NoHTZ:
-        # Select SNPs with a HTZ in a min and max proportion
-        df = df[(df.ALT_FREQ > args.min_prop) & (df.ALT_FREQ < args.max_prop)]
-
-        # Discard Synonymus SNV
-        df = df[df.REF_AA != df.ALT_AA]
 
     # Specify to wich gen affect the SNV
     df["GEN"] = [pos_to_gen(pos) for pos in df.POS]
