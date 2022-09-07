@@ -5,7 +5,7 @@ from pandarallel import pandarallel
 import dataframe_image as dfi
 import multiprocessing
 nproc = multiprocessing.cpu_count()
-pandarallel.initialize(nb_workers=nproc)
+pandarallel.initialize(nb_workers=nproc, verbose=0)
 
 # check if directory exists
 def check_create_dir(path):
@@ -24,7 +24,8 @@ def check_argmunets(args):
         return 1
     
     # Check mutation directory
-    elif not os.path.isfile(args.mut_dir):
+    elif not os.path.isdir(args.mut_dir):
+        print("%s: No such file or directory" %args.mut_dir)
         return 1
     
     # Check reference genome
@@ -346,15 +347,25 @@ def aln2matrix(ids, aln_ref, sequences, cov_d, args):
     return(df)
 
 def color_df(row):
-    colours = ["steelblue","indianred","darkseagreen","skyblue", "yellow", "#CD661D", "white"]
+
+    # Colours
+    colours = ["steelblue","indianred","darkseagreen","skyblue", "yellow", "white"]
     highlight = 'background-color: '
     l_colors = [highlight + "#cbaca4" + ";"]
+
+    # row
     ref_cell = row[0]
     for i in range(len(row)):
         cell = row[i]
+        
+        # Not ref
         if i:
-            if cell not in ["A", "C", "G", "T", "L", "R"]:
+            if "/" in cell:
+                l_colors += [highlight + colours[4] + ";"]
+
+            elif cell not in ["A", "C", "G", "T"]:
                 l_colors += [highlight + colours[-1] + ";"]
+
             elif cell != ref_cell:
                 if cell == "A":
                     l_colors += [highlight + colours[0] + ";"]
@@ -364,10 +375,6 @@ def color_df(row):
                     l_colors += [highlight + colours[2] + ";"]
                 elif cell == "T":
                     l_colors += [highlight + colours[3] + ";"]
-                elif cell == "L":
-                    l_colors += [highlight + colours[4] + ";"]
-                elif cell == "R":
-                    l_colors += [highlight + colours[4] + ";"]
                 else:
                     l_colors += [highlight + colours[0] + ";"]
             else:
