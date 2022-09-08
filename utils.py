@@ -363,17 +363,18 @@ def color_df(row):
             if "/" in cell:
                 l_colors += [highlight + colours[4] + ";"]
 
-            elif cell not in ["A", "C", "G", "T"]:
+            # Only colour SNVs 
+            elif i > 4 or (len(cell) and cell[0] not in ["A", "C", "G", "T"]):
                 l_colors += [highlight + colours[-1] + ";"]
 
-            elif cell != ref_cell:
-                if cell == "A":
+            elif len(cell) and cell[0] != ref_cell:
+                if cell[0] == "A":
                     l_colors += [highlight + colours[0] + ";"]
-                elif cell == "C":
+                elif cell[0] == "C":
                     l_colors += [highlight + colours[1] + ";"]
-                elif cell == "G":
+                elif cell[0] == "G":
                     l_colors += [highlight + colours[2] + ";"]
-                elif cell == "T":
+                elif cell[0] == "T":
                     l_colors += [highlight + colours[3] + ";"]
                 else:
                     l_colors += [highlight + colours[0] + ";"]

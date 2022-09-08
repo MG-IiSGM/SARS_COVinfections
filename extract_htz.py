@@ -1,5 +1,7 @@
 # imports
 import dataframe_image as dfi
+from scipy import stats
+import subprocess
 import os
 import pandas as pd
 import numpy as np
@@ -16,9 +18,9 @@ parser.add_argument("--tsv_file", help="tsv file to extract htz positions",
 parser.add_argument("--cov_file", help="tsv file to extract htz positions", 
                     default=[], required=True, action='append')
 parser.add_argument("--mut_dir", help="directory where all mutation file are located", required=False,
-                    default="/media/NASII/Datos/ANALYSIS/MISC/covid_analysis/coinfecciones/PROYECTO_MIXTAS/mutations")
+                    default="../mutations")
 parser.add_argument("--ref_genome", help="file with reference genome", required=False,
-                    default="/media/NASII/Datos/ANALYSIS/MISC/covid_analysis/coinfecciones/PROYECTO_MIXTAS/SCRIPTS/COVID_ref.fasta")
+                    default="../COVID_ref.fasta")
 
 parser.add_argument("--get_SNVs", help="Get SNVs from a certain lineage", 
                     default=[], required=False, action='append')
@@ -26,12 +28,14 @@ parser.add_argument("--get_HTZ", help="Get HTZ and HOM positions",
                     action="store_true")
 parser.add_argument("--discard_INDEL", help="Discard INDEL positions", 
                     action="store_true")
+parser.add_argument("--pangolin", help="pangolin annotation", 
+                    action="store_true")
 parser.add_argument("--out_dir", help="Output directory", default=".")
 parser.add_argument("--out_name", help="alignment out name", default="alingment")
 parser.add_argument("--file_sep", help="File separator", default="\t")
 parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNV", default=15)
 parser.add_argument("--min_prop", help="minimum proportion for htz", default=0.15)
-parser.add_argument("--max_prop", help="minimum proportion for htz", default=0.85)
+parser.add_argument("--max_prop", help="minimum proportion for htz", default=0.9)
 
 # check arguments
 args = parser.parse_args()
@@ -121,8 +125,19 @@ for tsv in args.tsv_file:
         total_htz = HTZ_SNVs.shape[0]
         
         # get mean and std HTZ proportion
-        mean_ALT_HTZ_prop = round(HTZ_SNVs["ALT_FREQ"].mean(), 3)
-        std_ALT_HTZ_prop = round(HTZ_SNVs["ALT_FREQ"].std(), 3)
+        upper_HTZ_prop_l = []
+        lower_HTZ_prop_l = []
+        for _, row in HTZ_SNVs.iterrows():
+            if row["ALT_FREQ"] > row["REF_FREQ"]:
+                upper_HTZ_prop_l.append(row["ALT_FREQ"])
+                lower_HTZ_prop_l.append(row["REF_FREQ"])
+            else:
+                upper_HTZ_prop_l.append(row["REF_FREQ"])
+                lower_HTZ_prop_l.append(row["ALT_FREQ"])
+
+        t, p_value = stats.ttest_ind(upper_HTZ_prop_l, lower_HTZ_prop_l, equal_var=False)
+        mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
+        std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
 
         # HOM SNVs
         HOM_SNVs = df[(df.ALT_FREQ > args.max_prop) | (df.ALT_FREQ < args.min_prop)]
@@ -136,30 +151,53 @@ for tsv in args.tsv_file:
         
         # Store stats HTZ
         stats = open("%s_stats.csv" %(dir_name_tsv_explode + "/" + name_tsv), "w")
-        to_write = "Lineage,Total_HTZ,mean,std\n"
-        to_write += "ALL" + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + "," + str(std_ALT_HTZ_prop) + "\n"
+        to_write = "Lineage,Total_HTZ,mean,std,p_value\n"
+        to_write += name_tsv + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + "," + str(std_ALT_HTZ_prop) + "," + str(p_value) + "\n"
 
         for variant in mutations:
             df_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
             if df_variant.shape[0] != 1:
-                to_write += variant + "," + str(df_variant.shape[0]) + "," + str(round(df_variant["ALT_FREQ"].mean(), 3)) + "," + str(round(df_variant["ALT_FREQ"].std(), 3)) + "\n"
+                to_write += variant + "," + str(df_variant.shape[0]) + "," + str(round(df_variant["ALT_FREQ"].mean(), 3)) + "," + str(round(df_variant["ALT_FREQ"].std(), 3)) + ",\n"
             else:
-                to_write += variant + ",,,\n"
+                to_write += variant + ",,,,\n"
+        
+        # Not lineage
+        df_non_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
+        NL_upper_HTZ_prop_l = []
+        NL_low_HTZ_prop_l = []
+        for _, row in df_non_variant.iterrows():
+            if row["ALT_FREQ"] > row["REF_FREQ"]:
+                NL_upper_HTZ_prop_l.append(row["ALT_FREQ"])
+                NL_low_HTZ_prop_l.append(row["REF_FREQ"])
+            else:
+                NL_upper_HTZ_prop_l.append(row["REF_FREQ"])
+                NL_low_HTZ_prop_l.append(row["ALT_FREQ"])
+        
+        mean_ALT_HTZ_prop_no_variant = round(np.mean(NL_upper_HTZ_prop_l), 3)
+        std_ALT_HTZ_prop_no_variant = round(np.std(NL_upper_HTZ_prop_l), 3)
+        to_write += "No_variant" + "," + str(df_non_variant.shape[0]) + "," + str(mean_ALT_HTZ_prop_no_variant) + "," + str(std_ALT_HTZ_prop_no_variant) + "," + "" + "\n"
 
         stats.write(to_write)
         stats.close()
 
 
         ######### ALINGMENT ########
+        # out_aln_dir
+        out_aln_dir = dir_name_tsv + "/ALN"
+        utils.check_create_dir(out_aln_dir)
+
         # Parse reference sequence
         l_ref_sequence, header, ref_sequence = utils.parse_ref_genome(args)
 
         # List with Sample1 (<ALT_FREQ), Sample1+2 and Sample2 (>ALT_FREQ)
         genomes = [l_ref_sequence.copy(), l_ref_sequence.copy(), l_ref_sequence.copy()]
+        sequences = [l_ref_sequence.copy(), l_ref_sequence.copy(), l_ref_sequence.copy()]
 
         for i in range(len(genomes)):
             # genome
             genome = genomes[i]
+            # sequence
+            sequence = sequences[i]
 
             # Introduce HOM positions in ref_genome
             for _, row in HOM_SNVs.iterrows():
@@ -170,6 +208,8 @@ for tsv in args.tsv_file:
                 # If SNV
                 if row["REF_FREQ"] < row["ALT_FREQ"]:
                     genome[coordinate] = row["ALT"]
+                    sequence[coordinate] = row["ALT"]
+
             
             # Introduce HTZ positions in ref_genome
             for _, row in HTZ_SNVs.iterrows():
@@ -180,9 +220,11 @@ for tsv in args.tsv_file:
                 # If Sample1
                 if i == 0:
                     if row["REF_FREQ"] > row["ALT_FREQ"]:
-                        genome[coordinate] = row["ALT"]
+                        genome[coordinate] = row["ALT"] + " (" + str(row["ALT_FREQ"]) + ")"
+                        sequence[coordinate] = row["ALT"]
                     else:
-                        genome[coordinate] = row["REF"]
+                        genome[coordinate] = row["REF"] + " (" + str(row["REF_FREQ"]) + ")"
+                        sequence[coordinate] = row["REF"]
                 
                 # If Sample1+2
                 elif i == 1:
@@ -194,10 +236,40 @@ for tsv in args.tsv_file:
                 # If Sample2
                 else:
                     if row["REF_FREQ"] > row["ALT_FREQ"]:
-                        genome[coordinate] = row["REF"]
+                        genome[coordinate] = row["REF"] + " (" + str(row["REF_FREQ"]) + ")"
+                        sequence[coordinate] = row["REF"]
                     else:
-                        genome[coordinate] = row["ALT"]
+                        genome[coordinate] = row["ALT"] + " (" + str(row["ALT_FREQ"]) + ")"
+                        sequence[coordinate] = row["ALT"]
         
+        # Store sequences to fasta files
+        # out sequences dir
+        out_seq_dir = dir_name_tsv + "/Sequences"
+        utils.check_create_dir(out_seq_dir)
+
+        # Sample1
+        sample1 = open(out_seq_dir + "/Sample1.fasta", "w")
+        to_write = ">Sample1\n" + "".join(sequences[0]) + "\n"
+        sample1.write(to_write)
+        sample1.close()
+
+        if args.pangolin:
+            subprocess.run(["pangolin", out_seq_dir + "/Sample1.fasta", "--outdir", out_seq_dir,
+                             "--outfile", "Sample1_pangolin.csv",
+                              "--max-ambig", "0.6"])
+
+        # Sample2
+        sample2 = open(out_seq_dir + "/Sample2.fasta", "w")
+        to_write = ">Sample2\n" + "".join(sequences[2]) + "\n"
+        sample2.write(to_write)
+        sample2.close()
+
+        if args.pangolin:
+            subprocess.run(["pangolin", out_seq_dir + "/Sample2.fasta", "--outdir", out_seq_dir,
+                             "--outfile", "Sample2_pangolin.csv",
+                              "--max-ambig", "0.6"])
+        
+        ######################
         # Convert alingment to dataframe
         coordinates = list(range(1, len(genomes[0]) + 1))
         df_aln = pd.DataFrame([l_ref_sequence] + genomes, columns = coordinates,
@@ -206,6 +278,20 @@ for tsv in args.tsv_file:
         df_aln_SNV = df_aln_t[(df_aln_t["Reference"] != df_aln_t["Sample1"]) | 
                         (df_aln_t["Reference"] != df_aln_t["Sample2"])].T
         
+        # Set position depth
+        position_dp = []
+        position_l = []
+
+        for column in df_aln_SNV.columns:
+            position_l.append(column)
+            position_dp.append(str(df[df["POS"] == column].TOTAL_DP.values[0]))
+        
+        # Concat to df_aln_SNV
+        DP_df = pd.DataFrame()
+        DP_df["Total_DP"] = position_dp
+        DP_df.index = position_l
+        df_aln_SNV = pd.concat([df_aln_SNV, DP_df.T], sort=False)
+
         # Set lineage
         # Dictonary to store SNPs-location
         l_SNPs = {}
@@ -244,13 +330,26 @@ for tsv in args.tsv_file:
         df_concat = pd.concat([df_aln_SNV, l_SNPs_df.T], sort=False)
 
         # Store df
-        df_concat.to_csv("%s_aln.csv" %(dir_name_tsv + "/" + name_tsv), sep=",")
-
+        df_concat.to_csv("%s_aln.csv" %(out_aln_dir + "/" + name_tsv), sep=",")
 
         # Color Dataframe
         dfi.export(df_concat.style.apply(utils.color_df, axis = 0),
-                     "%s_aln.png" %(dir_name_tsv + "/" + name_tsv),
+                     "%s_aln.png" %(out_aln_dir + "/" + name_tsv),
                      max_cols=-1, )
+        
+        # Select only HTZ positions in Alingment
+        df_concat_t = df_concat.T
+        df_concat_HTZ = df_concat_t[df_concat_t["Sample1"] != df_concat_t["Sample2"]]
+        df_concat_HTZ = df_concat_HTZ.T
+
+        # Store df
+        df_concat_HTZ.to_csv("%s_HTZ_aln.csv" %(out_aln_dir + "/" + name_tsv), sep=",")
+
+        # Color Dataframe
+        dfi.export(df_concat_HTZ.style.apply(utils.color_df, axis = 0),
+                     "%s_HTZ_aln.png" %(out_aln_dir + "/" + name_tsv),
+                     max_cols=-1, )
+        ###############################
 
 exit(1)
 
