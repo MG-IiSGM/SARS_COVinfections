@@ -121,6 +121,18 @@ for tsv in args.tsv_file:
         HTZ_SNVs_explode.to_csv("%s_exp_htz.csv" %(dir_name_tsv_explode + "/" + name_tsv),
              index=False, sep=",")
 
+        # HOM SNVs
+        HOM_SNVs = df[(df.ALT_FREQ > args.max_prop) | (df.ALT_FREQ < args.min_prop)]
+        HOM_SNVs_explode = HOM_SNVs.explode("LINEAGE")
+
+        # Store df
+        HOM_SNVs.to_csv("%s_hom.csv" %(dir_name_tsv + "/" + name_tsv),
+                index=False, sep=",")
+        HOM_SNVs_explode.to_csv("%s_exp_hom.csv" %(dir_name_tsv_explode + "/" + name_tsv),
+             index=False, sep=",")
+        
+        ############################
+        # Store stats HTZ
         # total no. htz SNVs
         total_htz = HTZ_SNVs.shape[0]
         
@@ -138,18 +150,7 @@ for tsv in args.tsv_file:
         t, p_value = stats.ttest_ind(upper_HTZ_prop_l, lower_HTZ_prop_l, equal_var=False)
         mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
         std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
-
-        # HOM SNVs
-        HOM_SNVs = df[(df.ALT_FREQ > args.max_prop) | (df.ALT_FREQ < args.min_prop)]
-        HOM_SNVs_explode = HOM_SNVs.explode("LINEAGE")
-
-        # Store df
-        HOM_SNVs.to_csv("%s_hom.csv" %(dir_name_tsv + "/" + name_tsv),
-                index=False, sep=",")
-        HOM_SNVs_explode.to_csv("%s_exp_hom.csv" %(dir_name_tsv_explode + "/" + name_tsv),
-             index=False, sep=",")
         
-        # Store stats HTZ
         stats = open("%s_stats.csv" %(dir_name_tsv_explode + "/" + name_tsv), "w")
         to_write = "Lineage,Total_HTZ,mean,std,p_value\n"
         to_write += name_tsv + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + "," + str(std_ALT_HTZ_prop) + "," + str(p_value) + "\n"
