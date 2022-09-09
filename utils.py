@@ -18,13 +18,8 @@ def check_create_dir(path):
 # check initial arguments
 def check_argmunets(args):
 
-    # Same number cov and tsv files
-    if len(args.tsv_file) != len(args.cov_file):
-        print("Not equal number of tsv and cov files provided")
-        return 1
-    
     # Check mutation directory
-    elif not os.path.isdir(args.mut_dir):
+    if not os.path.isdir(args.mut_dir):
         print("%s: No such file or directory" %args.mut_dir)
         return 1
     
@@ -33,25 +28,16 @@ def check_argmunets(args):
         return 1
     
     # Check tsv files
-    for file in args.tsv_file:
-        if not os.path.isfile(file):
-            print("%s: No such file or directory" %file)
-            return 1
-        else:
-            return 0
-    
-    # Check cov files
-    for file in args.cov_file:
-        if not os.path.isfile(file):
-            print("%s: No such file or directory" %file)
-            return 1
-        else:
-            return 0
+    if not os.path.isfile(args.tsv_file):
+        print("%s: No such file or directory" %args.tsv_file)
+        return 1
+    else:
+        return 0
 
-def parse_ref_genome(args):
+def parse_fasta(file):
 
     # reference fasta
-    fasta_ref = open(args.ref_genome, "r")
+    fasta_ref = open(file, "r")
     ref_sequence = ""
     header = ""
     for line in fasta_ref:
