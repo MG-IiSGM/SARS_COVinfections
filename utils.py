@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+from scipy import stats
 from pandarallel import pandarallel
 import dataframe_image as dfi
 import multiprocessing
@@ -25,15 +26,19 @@ def check_argmunets(args):
     
     # Check reference genome
     elif not os.path.isfile(args.ref_genome):
+        print("%s: No such file or directory" %args.ref_genome)
         return 1
     
     # Check tsv files
-    if not os.path.isfile(args.tsv_file):
+    elif not os.path.isfile(args.tsv_file):
         print("%s: No such file or directory" %args.tsv_file)
         return 1
+    
+    # If all OK
     else:
         return 0
 
+# read fasta function
 def parse_fasta(file):
 
     # reference fasta
@@ -52,6 +57,7 @@ def parse_fasta(file):
 
     return l_ref_sequence, header, ref_sequence
 
+# convert positions to gen
 def pos_to_gen(pos):
 
     if pos > 265 and pos < 21556:
@@ -78,259 +84,138 @@ def pos_to_gen(pos):
         return "ORF10" # "ORF10":[29558, 29674]
 
 
-def filter_tsv(args, file, drop_features=True):
+def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv_explode):
 
-    # Read tsv
-    df = pd.read_csv(file, sep=args.file_sep)
-
-    # Drop duplicates
-    df.drop_duplicates(subset=["POS"], keep="first", inplace=True)
-
-    # Select SNPs >= min_DP_freq
-    df = df[df.TOTAL_DP >= args.min_DP_freq]
-
-    # Specify to wich gen affect the SNV
-    df["GEN"] = [pos_to_gen(pos) for pos in df.POS]
-
-    # Round to 2 ALT_FREQ
-    df.ALT_FREQ = df.ALT_FREQ.round(2)
-
-    # Set REF_FREQ
-    df["REF_FREQ"] = df.parallel_apply(lambda row: 1 - row.ALT_FREQ, axis = 1)
-
-    # Drop non relevant features
-    if drop_features:
-        df.drop(columns=["REGION", "REF_RV", "REF_QUAL", "ALT_RV",
-                        "ALT_QUAL", "PVAL", "PASS", "GFF_FEATURE"], inplace=True)
-
-    df = df[["POS", "REF", "ALT", "TOTAL_DP", "REF_DP", "REF_FREQ",
-            "ALT_DP", "ALT_FREQ", "REF_CODON", "REF_AA", "ALT_CODON",
-            "ALT_AA", "GEN"]]
-    return df
-
-def parse_coverage_file(args):
-
-    cov_d = {}
-    for file in args.cov_file:
-        name = file.replace(".cov", "")
-        cov_d[name] = {}
-        f = open(file, "r")
-        for line in f:
-            l = line.strip()
-            position = int(l.split("\t")[1])
-            coverage = int(l.split("\t")[2])
-            cov_d[name][position] = coverage
-        f.close()
-    return cov_d
-
-def get_alingment_stats(df, args, df_concat, first_sample_name, second_sample_name):
-
-    text_stats = open(args.out_dir + "/" + "alingment_stats.txt", "w")
-    df_first = pd.read_csv(first_sample_name, sep=",")
-    df_second = pd.read_csv(second_sample_name, sep=",")
-    DF = [df_first, df_second]
-
-    df_t = df.T
-    to_write = "Total number of SNVs: "+ str(len(df.columns)) + "\n"
-
-    # Discrepant SNVs
-    id_discrepant_pos = np.where(df_t[">" + args.tsv_file[0].replace(".tsv", "")] != df_t[">" + args.tsv_file[1].replace(".tsv", "")])
-    df_not_equal = df_concat.iloc[:,id_discrepant_pos[0]]
-    df_not_equal_ = df_not_equal.copy()
+    # total no. htz SNVs
+    total_htz = HTZ_SNVs.shape[0]
     
-    for i in range(len(DF)):
-        df_ = DF[i]
-        for column in df_not_equal[1:]:
-            if not sum(df_["POS"] == int(column)):
-                continue
+    # get mean and std HTZ proportion
+    upper_HTZ_prop_l = []
+    lower_HTZ_prop_l = []
 
-            if df_not_equal[column][i + 1] == "R" or df_[df_["POS"] == int(column)].REF.values[0] == df_not_equal[column][i + 1]:
-                df_not_equal[column][i + 1] = df_not_equal[column][i + 1] + " (" + str(round(df_[df_["POS"] == int(column)].REF_FREQ.values[0], 2)) + ")"
+    for _, row in HTZ_SNVs.iterrows():
+        if row["ALT_FREQ"] > row["REF_FREQ"]:
+            upper_HTZ_prop_l.append(row["ALT_FREQ"])
+            lower_HTZ_prop_l.append(row["REF_FREQ"])
+        else:
+            upper_HTZ_prop_l.append(row["REF_FREQ"])
+            lower_HTZ_prop_l.append(row["ALT_FREQ"])
 
+    # statistics
+    t, p_value = stats.ttest_ind(upper_HTZ_prop_l, lower_HTZ_prop_l, equal_var=False)
+    mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
+    std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
+    median_ALT_HTZ_prop = round(np.median(upper_HTZ_prop_l), 3)
+    var_ALT_HTZ_prop = round(np.var(upper_HTZ_prop_l), 3)
+    min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
+    max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
+    
+    stats_file = open("%s_stats.csv" %(dir_name_tsv_explode + "/" + name_tsv), "w")
+    to_write = "Lineage,Total_HTZ,mean,std,median,var,min,max,p_value\n"
+    to_write += name_tsv + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + \
+                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + "," + str(max_ALT_HTZ_prop) + \
+                    "," + str(p_value) + "\n"
+
+    for variant in mutations:
+        df_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
+        if df_variant.shape[0] != 1:
+            to_write += variant + "," + str(df_variant.shape[0]) + "," + str(round(df_variant["ALT_FREQ"].mean(), 3)) + "," + str(round(df_variant["ALT_FREQ"].std(), 3)) + ",,,,,\n"
+        else:
+            to_write += variant + ",,,,,,,,\n"
+    
+    # Not lineage
+    df_non_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
+    NL_upper_HTZ_prop_l = []
+    NL_low_HTZ_prop_l = []
+
+    for _, row in df_non_variant.iterrows():
+        if row["ALT_FREQ"] > row["REF_FREQ"]:
+            NL_upper_HTZ_prop_l.append(row["ALT_FREQ"])
+            NL_low_HTZ_prop_l.append(row["REF_FREQ"])
+        else:
+            NL_upper_HTZ_prop_l.append(row["REF_FREQ"])
+            NL_low_HTZ_prop_l.append(row["ALT_FREQ"])
+    
+    mean_ALT_HTZ_prop_no_variant = round(np.mean(NL_upper_HTZ_prop_l), 3)
+    std_ALT_HTZ_prop_no_variant = round(np.std(NL_upper_HTZ_prop_l), 3)
+    to_write += "No_variant" + "," + str(df_non_variant.shape[0]) + "," + str(mean_ALT_HTZ_prop_no_variant) + "," + str(std_ALT_HTZ_prop_no_variant) + "," + ",,,," + "\n"
+
+    stats_file.write(to_write)
+    stats_file.close()
+
+def include_lineages(args, df_aln_SNV, mutations):
+    l_SNPs = {}
+
+    for variant in mutations:
+        # BA.2
+
+        # List to store mutations asociated to the lineage
+        l_SNPs[variant] = []
+
+        # Positions associated with the lineage
+        mut_dict = mutations[variant]
+
+        for i in range(len(df_aln_SNV.columns)):
+
+            pos = list(df_aln_SNV.columns)[i]
+
+            if pos in mut_dict:
+                l_SNPs[variant].append(variant)
             else:
-                df_not_equal[column][i + 1] = df_not_equal[column][i + 1] + " (" + str(round(df_[df_["POS"] == int(column)].ALT_FREQ.values[0], 2)) + ")"
+                l_SNPs[variant].append("")
 
+    # Create pandas Dataframe with positions
+    l_SNPs_df = pd.DataFrame()
+    for variant in mutations:
+        l_SNPs_df[variant] = l_SNPs[variant]
+    l_SNPs_df.index = df_aln_SNV.columns
+
+    # Select only lineages specified in get_SNPs
+    if len(args.get_SNP):
+        for variant in mutations:
+            if variant not in args.get_SNP:
+                l_SNPs_df.drop(columns=[variant], inplace=True)
+
+    # Concatenate with SNP alignment
+    df_concat = pd.concat([df_aln_SNV, l_SNPs_df.T], sort=False)
+
+    return df_concat
+
+def mini_compare(out_epi_dir):
+
+    # Compare samples
+    l_samples = {}
+
+    f = open(os.path.join(out_epi_dir, "episode_aln.aln"), "r")
+    header = ""
+    ref_sequence = ""
+    for line in f:
+        if line.startswith(">"):
+            if header != "":
+                l_samples[header] = list(ref_sequence)
+            header = line.strip().split(" ")[0][1:]
+            ref_sequence = ""
+        else:
+            ref_sequence += line.strip().upper()
+    l_samples[header] = list(ref_sequence)
+    f.close()
+
+    df_episodes = pd.DataFrame(list(l_samples.values()), index = l_samples.keys()).T
     
-    df_not_equal.to_csv(args.out_dir + "/" + args.tsv_file[0].replace(".tsv", "") + "_" + args.tsv_file[1].replace(".tsv", "") + "_not_share.csv", sep=",")
-    to_write += "    Total number of unique SNVs: " + str(df_not_equal.shape[1]) + "\n"
-
-    only_first = []
-    only_second = []
-    bases = ["A", "C", "G", "T"]
-
-    for position in df_not_equal_:
-        # only first
-        if df_not_equal_[position][1] in bases and df_not_equal_[position][1] != df_not_equal_[position][0] and df_not_equal_[position][0] == df_not_equal_[position][2]:
-            only_first.append(position)
-        elif df_not_equal_[position][2] in bases and df_not_equal_[position][2] != df_not_equal_[position][0] and df_not_equal_[position][0] == df_not_equal_[position][1]:
-            only_second.append(position)
-
-    # Only first SNVs
-    df_only_first = df_not_equal_[only_first]
-    for i in range(len(DF)):
-        if i == 0:
-            df_ = DF[i]
-            for column in df_only_first[1:]:
-
-                if df_only_first[column][i + 1] == "R" or df_[df_["POS"] == int(column)].REF.values[0] == df_only_first[column][i + 1]:
-                    df_only_first[column][i + 1] = df_only_first[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].REF_FREQ.values[0]) + ")"
-
-                else:
-                    df_only_first[column][i + 1] = df_only_first[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].ALT_FREQ.values[0]) + ")"
-
+    compare_row = []
+    for column in df_episodes.columns[1:]:
+        l = []
+        for c in df_episodes.columns[1:]:
+            l.append(sum((df_episodes[column] != df_episodes[c]) & 
+            ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
+             (df_episodes[c] != "N") & (df_episodes[c] != "-")))
+        compare_row.append(l)
     
-    df_only_first.to_csv(args.out_dir + "/" + args.tsv_file[0].replace(".tsv", "") + "_only.csv", sep=",")
-    to_write += "        Number of SNVs in " + args.tsv_file[0] + " : " + str(len(only_first)) + "\n"
-
-    # Only second SNVs
-    df_only_second = df_not_equal_[only_second]
-    for i in range(len(DF)):
-        if i == 1:
-            df_ = DF[i]
-            for column in df_only_second[1:]:
-
-                if df_only_second[column][i + 1] == "R" or df_[df_["POS"] == int(column)].REF.values[0] == df_only_second[column][i + 1]:
-                    df_only_second[column][i + 1] = df_only_second[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].REF_FREQ.values[0]) + ")"
-
-                else:
-                    df_only_second[column][i + 1] = df_only_second[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].ALT_FREQ.values[0]) + ")"
-
-    df_only_second.to_csv(args.out_dir + "/" + args.tsv_file[1].replace(".tsv", "") + "_only.csv", sep=",")
-    to_write += "        Number of SNVs in " + args.tsv_file[1] + " : " + str(len(only_second)) + "\n"
+    compare_df = pd.DataFrame(compare_row, columns = list(df_episodes.columns[1:]), 
+                index = list(df_episodes.columns[1:]))
     
-    # Shared SNVs
-    id_equal_pos = np.where(df_t[">" + args.tsv_file[0].replace(".tsv", "")] == df_t[">" + args.tsv_file[1].replace(".tsv", "")])
-
-    df_equal = df_concat.iloc[:,id_equal_pos[0]]
-    for i in range(len(DF)):
-        df_ = DF[i]
-        for column in df_equal[1:]:
-
-            if df_equal[column][i + 1] == "R" or df_[df_["POS"] == int(column)].REF.values[0] == df_equal[column][i + 1]:
-                df_equal[column][i + 1] = df_equal[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].REF_FREQ.values[0]) + ")"
-
-            else:
-                df_equal[column][i + 1] = df_equal[column][i + 1] + " (" + str(df_[df_["POS"] == int(column)].ALT_FREQ.values[0]) + ")"
-
-    
-    df_equal.to_csv(args.out_dir + "/" + args.tsv_file[0].replace(".tsv", "") + "_" + args.tsv_file[1].replace(".tsv", "") + "_share.csv", sep=",")
-    to_write += "    Total number of shared SNVs: " + str(df_equal.shape[1]) + "\n"
-
-    text_stats.write(to_write)
-    text_stats.close()
-
-def get_general_stats(df, name_file, out_dir, min_homo_prop):
-    
-    out_file = open(out_dir + "/" + name_file + "_stats.txt", "w")
-
-    # Total number of SNVs
-    to_write = "Total number of SNVs: " + str(df.shape[0]) + "\n"
-    
-    # HOMO SNVs
-    HOM_SNVs = df[df.ALT_FREQ > min_homo_prop]
-    HOM_SNVs.LINEAGE = df.LINEAGE.apply(lambda y: np.nan if len(y)==0 else y)
-    HOM_SNVs.fillna(0, inplace=True)
-    to_write += "    Number of HOMO SNVs: " + str(HOM_SNVs.shape[0]) + "\n"
-    HOM_SNVs.to_csv(out_dir + "/" + name_file + "_HOMO.csv", index=False, sep=",")
-    
-    # HOMO SNVs related to a certain lineage
-    HOM_SNVs_lineage = HOM_SNVs[HOM_SNVs.LINEAGE != 0]
-    to_write += "        Number of HOMO SNVs related to a lineage: " + str(HOM_SNVs_lineage.shape[0]) + "\n"
-
-    # HOMO SNVs not related to a certain lineage
-    HOM_SNVs_not_lineage = HOM_SNVs[HOM_SNVs.LINEAGE == 0]
-    to_write += "        Number of HOMO SNVs not related to a lineage: " + str(HOM_SNVs_not_lineage.shape[0]) + "\n"
-
-    # HTZ SNVs
-    HTZ_SNVs = df[df.ALT_FREQ < min_homo_prop]
-    to_write += "    Number of HTZ SNVs: " + str(HTZ_SNVs.shape[0]) + "\n"
-    HTZ_SNVs.to_csv(out_dir + "/" + name_file + "_HTZ.csv", index=False, sep=",")
-    
-    # INDEL HTZ SNVs
-    INDEL_HTZ_SNVs = HTZ_SNVs[HTZ_SNVs.ALT.str[0].isin(["+", "-"])]
-    to_write += "        Number of INDELS in HTZ SNVs: " + str(INDEL_HTZ_SNVs.shape[0]) + "\n"
-    
-    # NOT INDEL HTZ SNVs
-    NOT_INDEL_HTZ_SNVs = HTZ_SNVs[~(HTZ_SNVs.ALT.str[0].isin(["+", "-"]))]
-    to_write += "        Number of NOT INDELS in HTZ SNVs: " + str(NOT_INDEL_HTZ_SNVs.shape[0]) + "\n"
-
-    out_file.write(to_write)
-    out_file.close()
-
-##############################################
-def parse_aln(aln_file):
-    sequences = []
-    ids = []
-    with open(aln_file, "r") as f:
-        for line in f:
-            if line[0] == ">":
-                if len(ids):
-                    sequences.append(seq)
-                ids.append(line.strip())
-                seq = ""
-            else:
-                seq += line.strip().upper()
-        sequences.append(seq)
-    
-    return (ids, sequences)
-
-def find_snps(reference_seq,input_seqs, rest_ids):
-    non_amb = ["A","T","G","C", "L", "R"]
-    # Key id, value snps
-    snp_dict = {}
-    # key snps value counter
-    snp_counter = {}
-    # key aln pos, value ref pos
-    aln_ref = {}
-
-    for index in range(len(input_seqs)):
-        # sequence
-        query_seq = input_seqs[index]
-        ref_pos = 0
-        # list to store the snps
-        snps =[]
-
-        for i in range(len(query_seq)):
-            bases = [query_seq[i],reference_seq[i]]
-            # consider reference position
-            if reference_seq[i] in non_amb:
-                ref_pos += 1
-            if bases[0] != bases[1]:
-                # consider only non gap positions
-                if bases[0] in non_amb and bases[1] in non_amb:
-                    snp = "%s%s%s" %(bases[1], str(ref_pos), bases[0])
-                    if not i + 1 in aln_ref:
-                        aln_ref[i + 1] = ref_pos
-                    if snp not in snp_counter:
-                        snp_counter[snp] = 1
-                    else:
-                        snp_counter[snp]+=1
-                    snps.append(snp)
-        snp_dict[rest_ids[index]] = snps
-
-    return snp_dict, snp_counter, aln_ref
-
-# create codified DF
-def aln2matrix(ids, aln_ref, sequences, cov_d, args):
-    df = pd.DataFrame()
-    df.index = ids
-
-    for position in aln_ref:
-        ref_position = aln_ref[position]
-        base_positions = []
-        for i in range(len(sequences)):
-            sequence = sequences[i]
-            id = ids[i][1:]
-            # Add letter codification
-            if sequence[position - 1] == "N":
-                base_positions.append("")
-            elif id != "NC_045512.2" and cov_d[id][position] < args.min_DP_freq:
-                base_positions.append("")
-            else:
-                base_positions.append(sequence[position - 1])
-        df[ref_position] = base_positions
-    df = df[sorted(df.columns)]
-    return(df)
+    compare_df.to_csv(os.path.join(out_epi_dir, "episode_compare.csv"), sep=",")
 
 def color_df(row):
 
@@ -368,42 +253,6 @@ def color_df(row):
                 l_colors += [highlight + "#cbaca4" + ";"]
 
     return l_colors
-
-##############################################################
-
-def plot_SNPs(args, df, mutations):
-
-    # Dictonary to store SNPs-location
-    l_SNPs = {}
-
-    for variant in mutations:
-
-        l_SNPs[variant] = []
-        mut_dict = mutations[variant]
-
-        for i in range(len(df.columns)):
-            pos = list(df.columns)[i]
-            if pos in mut_dict:
-                l_SNPs[variant].append(variant)
-            else:
-                l_SNPs[variant].append("")
-
-    l_SNPs_df = pd.DataFrame()
-    for variant in mutations:
-        l_SNPs_df[variant] = l_SNPs[variant]
-    l_SNPs_df.index = df.columns
-
-    if len(args.get_SNVs):
-        for variant in mutations:
-            if variant not in args.get_SNVs:
-                l_SNPs_df.drop(columns=[variant], inplace=True)
-
-    df_concat = pd.concat([df, l_SNPs_df.T], sort=False)
-
-    # Save to png
-    dfi.export(df_concat.style.apply(color_df, axis = 0), args.out_dir + "/" + args.out_name + ".png", max_cols=-1)
-    return df_concat
-
 
 def parse_mut(args):
 
