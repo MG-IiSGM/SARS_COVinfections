@@ -15,7 +15,7 @@ def get_lineage(args, name_tsv, mutations):
     utils.check_create_dir(dir_name_tsv)
 
     # create out/tsv/explode dir
-    dir_name_tsv_explode = os.path.join(dir_name_tsv, "explode")
+    dir_name_tsv_explode = os.path.join(dir_name_tsv, "Explode")
     utils.check_create_dir(dir_name_tsv_explode)
 
     # Read tsv
@@ -72,7 +72,7 @@ def get_HTZ(df, args, name_tsv, mutations):
 
     # directories
     dir_name_tsv = os.path.join(args.out_dir, name_tsv)
-    dir_name_tsv_explode = os.path.join(dir_name_tsv, "explode")
+    dir_name_tsv_explode = os.path.join(dir_name_tsv, "Explode")
 
     # HTZ SNVs
     HTZ_SNVs = df[(df.ALT_FREQ < args.min_HOM) & (df.ALT_FREQ > (1 - args.min_HOM))]
@@ -95,7 +95,7 @@ def get_HTZ(df, args, name_tsv, mutations):
             index=False, sep=",")
 
     # HTZ stats
-    utils.get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv_explode)
+    utils.get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv)
 
     return HTZ_SNVs, HOM_SNVs
 
@@ -249,7 +249,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
     # Color Dataframe
     dfi.export(df_concat.style.apply(utils.color_df, axis = 0),
                     "%s_aln.png" %(out_aln_dir + "/" + name_tsv),
-                    max_cols=-1, )
+                    max_cols=-1)
     
     # Select only HTZ positions in Alingment
     df_concat_t = df_concat.T
@@ -263,7 +263,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
     # Color Dataframe
     dfi.export(df_concat_HTZ.style.apply(utils.color_df, axis = 0),
                     "%s_HTZ_aln.png" %(out_aln_dir + "/" + name_tsv),
-                    max_cols=-1, )
+                    max_cols=-1)
 
 def compare_episode(args, name_tsv):
     
@@ -304,7 +304,7 @@ def compare_episode(args, name_tsv):
 
     # Align samples with mafft
     try:
-        subprocess.call("mafft %s > %s" %(os.path.join(out_epi_dir, "episode_aln.fasta"),
+        subprocess.call("mafft --quiet --maxiterate 100 %s  > %s" %(os.path.join(out_epi_dir, "episode_aln.fasta"),
                         os.path.join(out_epi_dir, "episode_aln.aln")),
                         shell=True)
     except:

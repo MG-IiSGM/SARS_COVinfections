@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from pandarallel import pandarallel
-import dataframe_image as dfi
+import matplotlib.pyplot as plt
 import multiprocessing
 nproc = multiprocessing.cpu_count()
 pandarallel.initialize(nb_workers=nproc, verbose=0)
@@ -83,8 +83,48 @@ def pos_to_gen(pos):
     elif pos > 29557 and pos < 29675:
         return "ORF10" # "ORF10":[29558, 29674]
 
+def plot_proportions(HTZ_SNVs, name_stats_file):
 
-def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv_explode):
+    # extract high and low percentages
+    high = []
+    low = []
+    for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
+        if r > a:
+            high.append(r)
+            low.append(a)
+        else:
+            high.append(a)
+            low.append(r)
+    
+    # plot
+    plt.figure(figsize=(15, 12))
+    plt.title("HTZ positions")
+    l_pos = list(HTZ_SNVs.POS)
+    for i in range(len(l_pos)):
+        pos = l_pos[i]
+        plt.bar(str(pos), high[i] + low[i], color="green")
+        plt.bar(str(pos), high[i], color = "lightblue")
+    plt.xlabel("Positions")
+    plt.yticks([0.1, 0.2, 0.3, 0.4, 0.5,
+            0.6, 0.7, 0.8, 0.9, 1])
+    plt.xticks(rotation = 90)
+    
+    # 0.5 horizontal line
+    plt.axhline(y=0.5, color='r', linestyle='-')
+    # mean low horizontal line
+    high_mean = round(np.mean(high), 2)
+    high_std = round(np.std(high), 2)
+    plt.axhline(y=high_mean + high_std, color='black', linestyle='--')
+    plt.axhline(y=high_mean, color='black', linestyle='-')
+    plt.axhline(y=high_mean - high_std, color='black', linestyle='--')
+    plt.savefig("%s.png" %(name_stats_file))
+
+
+def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv):
+
+    # out_dir_stats
+    dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
+    check_create_dir(dir_name_tsv_stats)
 
     # total no. htz SNVs
     total_htz = HTZ_SNVs.shape[0]
@@ -107,10 +147,17 @@ def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv_
     std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
     median_ALT_HTZ_prop = round(np.median(upper_HTZ_prop_l), 3)
     var_ALT_HTZ_prop = round(np.var(upper_HTZ_prop_l), 3)
-    min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
-    max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
+    try:
+        min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
+    except:
+        min_ALT_HTZ_prop = 0
+    try:
+        max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
+    except:
+        max_ALT_HTZ_prop = 0
     
-    stats_file = open("%s_stats.csv" %(dir_name_tsv_explode + "/" + name_tsv), "w")
+    name_stats_file = os.path.join(dir_name_tsv_stats, name_tsv)
+    stats_file = open("%s_stats.csv" %(name_stats_file), "w")
     to_write = "Lineage,Total_HTZ,mean,std,median,var,min,max,p_value\n"
     to_write += name_tsv + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + \
                 "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
@@ -143,6 +190,9 @@ def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv_
 
     stats_file.write(to_write)
     stats_file.close()
+
+    # plot HTZ pos
+    plot_proportions(HTZ_SNVs, name_stats_file)
 
 def include_lineages(args, df_aln_SNV, mutations):
     l_SNPs = {}
@@ -207,9 +257,12 @@ def mini_compare(out_epi_dir):
     for column in df_episodes.columns[1:]:
         l = []
         for c in df_episodes.columns[1:]:
-            l.append(sum((df_episodes[column] != df_episodes[c]) & 
+            l.append(sum(
+                (df_episodes[column] != df_episodes[c]) & 
             ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
-             (df_episodes[c] != "N") & (df_episodes[c] != "-")))
+             (df_episodes[c] != "N") & (df_episodes[c] != "-") &
+             (df_episodes[column] != "X") & (df_episodes[c] != "X")
+                ))
         compare_row.append(l)
     
     compare_df = pd.DataFrame(compare_row, columns = list(df_episodes.columns[1:]), 

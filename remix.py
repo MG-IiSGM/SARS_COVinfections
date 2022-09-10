@@ -18,15 +18,16 @@ parser.add_argument("--get_SNP", help="Get SNVs from a certain lineage",
                     default=[], required=False, action='append')
 parser.add_argument("--episode", help="Extra recent episodes (samples) as fasta sequences", 
                     default=[], required=False, action='append')
-parser.add_argument("--pangolin", help="pangolin annotation", 
-                    action="store_true")
-parser.add_argument("--snipit", help="snipit analysis", 
-                    action="store_true")
 parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNV", default=15,
                     type=int)
 parser.add_argument("--min_HOM", help="minimum proportion for homocigosis",
                     default=0.85, type=float)
-parser.add_argument("--ambiguity", help="min value to segregate", default=0.57, type=float)
+parser.add_argument("--ambiguity", help="min value to segregate", default=0.56, type=float)
+
+parser.add_argument("--pangolin", help="pangolin annotation", 
+                    action="store_true")
+parser.add_argument("--snipit", help="snipit analysis", 
+                    action="store_true")
 
 # check arguments
 args = parser.parse_args()
@@ -57,4 +58,3 @@ mixtas.get_alingment(args, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
 # include previous or post episodes
 if args.episode:
     mixtas.compare_episode(args, name_tsv)
-    
