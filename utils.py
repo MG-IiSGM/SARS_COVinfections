@@ -1,4 +1,5 @@
 import os
+from turtle import width
 import pandas as pd
 import numpy as np
 from pandarallel import pandarallel
@@ -87,6 +88,7 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     # extract high and low percentages
     high = []
     low = []
+    variant_name = os.path.basename(name_stats_file)
 
     if not variant:
         
@@ -99,23 +101,36 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
                 low.append(r)
     
     else:
+
         # Always alt
         for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
             high.append(a)
             low.append(r)
     
     # plot
-    plt.figure(figsize=(20,15))
-    plt.title("HTZ positions")
+    if len(high) < 5:
+        width = 8
+    elif len(high) < 15:
+        width = 20
+    else:
+        width = 30
+    plt.figure(figsize=(width,15))
+
+    plt.title("HTZ positions %s" %(variant_name))
     l_pos = list(HTZ_SNVs.POS)
     for i in range(len(l_pos)):
         pos = l_pos[i]
-        plt.bar(str(pos), high[i] + low[i], color="green")
-        plt.bar(str(pos), high[i], color = "lightblue")
+            
+        plt.bar(str(pos), high[i] + low[i], color="darkgreen")
+        if i == 0:
+            plt.bar(str(pos), high[i], color = "lightblue", label=variant_name)
+        else:
+            plt.bar(str(pos), high[i], color = "lightblue")
     plt.xlabel("Positions")
     plt.yticks([0.1, 0.2, 0.3, 0.4, 0.5,
             0.6, 0.7, 0.8, 0.9, 1])
     plt.xticks(rotation = 90)
+    plt.legend()
     
     # 0.5 horizontal line
     plt.axhline(y=0.5, color='r', linestyle='-')
