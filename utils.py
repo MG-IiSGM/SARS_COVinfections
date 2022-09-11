@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import numpy as np
-from scipy import stats
 from pandarallel import pandarallel
 import matplotlib.pyplot as plt
 import multiprocessing
@@ -83,21 +82,30 @@ def pos_to_gen(pos):
     elif pos > 29557 and pos < 29675:
         return "ORF10" # "ORF10":[29558, 29674]
 
-def plot_proportions(HTZ_SNVs, name_stats_file):
+def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
 
     # extract high and low percentages
     high = []
     low = []
-    for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
-        if r > a:
-            high.append(r)
-            low.append(a)
-        else:
+
+    if not variant:
+        
+        for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
+            if r > a:
+                high.append(r)
+                low.append(a)
+            else:
+                high.append(a)
+                low.append(r)
+    
+    else:
+        # Always alt
+        for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
             high.append(a)
             low.append(r)
     
     # plot
-    plt.figure(figsize=(15, 12))
+    plt.figure(figsize=(20,15))
     plt.title("HTZ positions")
     l_pos = list(HTZ_SNVs.POS)
     for i in range(len(l_pos)):
@@ -120,79 +128,134 @@ def plot_proportions(HTZ_SNVs, name_stats_file):
     plt.savefig("%s.png" %(name_stats_file))
 
 
-def get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv):
+def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
     # out_dir_stats
     dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
     check_create_dir(dir_name_tsv_stats)
 
-    # total no. htz SNVs
-    total_htz = HTZ_SNVs.shape[0]
-    
-    # get mean and std HTZ proportion
-    upper_HTZ_prop_l = []
-    lower_HTZ_prop_l = []
-
-    for _, row in HTZ_SNVs.iterrows():
-        if row["ALT_FREQ"] > row["REF_FREQ"]:
-            upper_HTZ_prop_l.append(row["ALT_FREQ"])
-            lower_HTZ_prop_l.append(row["REF_FREQ"])
-        else:
-            upper_HTZ_prop_l.append(row["REF_FREQ"])
-            lower_HTZ_prop_l.append(row["ALT_FREQ"])
-
-    # statistics
-    t, p_value = stats.ttest_ind(upper_HTZ_prop_l, lower_HTZ_prop_l, equal_var=False)
-    mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
-    std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
-    median_ALT_HTZ_prop = round(np.median(upper_HTZ_prop_l), 3)
-    var_ALT_HTZ_prop = round(np.var(upper_HTZ_prop_l), 3)
-    try:
-        min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
-    except:
-        min_ALT_HTZ_prop = 0
-    try:
-        max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
-    except:
-        max_ALT_HTZ_prop = 0
-    
+    # stats file
     name_stats_file = os.path.join(dir_name_tsv_stats, name_tsv)
     stats_file = open("%s_stats.csv" %(name_stats_file), "w")
-    to_write = "Lineage,Total_HTZ,mean,std,median,var,min,max,p_value\n"
-    to_write += name_tsv + "," + str(total_htz) + "," + str(mean_ALT_HTZ_prop) + \
-                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + "," + str(max_ALT_HTZ_prop) + \
-                    "," + str(p_value) + "\n"
+    to_write = "Lineage,total_SNP,total_HOM,total_HTZ,mean,std,median,var,min,max\n"
 
+    # explode
+    HTZ_SNVs_explode = HTZ_SNVs.explode("LINEAGE")
+    HOM_SNVs_explode = HOM_SNVs.explode("LINEAGE")
+
+    # total no. SNPs
+    total_SNPs = df.shape[0]
+
+    # total no. htz SNPs
+    total_htz = HTZ_SNVs.shape[0]
+    
+    # get stats HTZ proportion
+    if total_htz:
+
+        upper_HTZ_prop_l = []
+
+        for _, row in HTZ_SNVs.iterrows():
+            if row["ALT_FREQ"] > row["REF_FREQ"]:
+                upper_HTZ_prop_l.append(row["ALT_FREQ"])
+            else:
+                upper_HTZ_prop_l.append(row["REF_FREQ"])
+
+        # statistics
+        mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
+        std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
+        median_ALT_HTZ_prop = round(np.median(upper_HTZ_prop_l), 3)
+        var_ALT_HTZ_prop = round(np.var(upper_HTZ_prop_l), 3)
+        min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
+        max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
+
+        to_write += name_tsv + "," + str(total_SNPs) + "," + str(HOM_SNVs.shape[0]) + \
+                "," + str(total_htz) + "," + \
+                str(mean_ALT_HTZ_prop) + \
+                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
+                        "," + str(max_ALT_HTZ_prop) + "\n"
+
+        # plot HTZ pos
+        plot_proportions(HTZ_SNVs, name_stats_file)
+
+    else:
+        to_write += name_tsv + str(total_SNPs) + "," + str(0) + "," + str(0) + ",,,,,,\n"
+
+    # variant stats
     for variant in mutations:
-        df_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
-        if df_variant.shape[0] != 1:
-            to_write += variant + "," + str(df_variant.shape[0]) + "," + str(round(df_variant["ALT_FREQ"].mean(), 3)) + "," + str(round(df_variant["ALT_FREQ"].std(), 3)) + ",,,,,\n"
+        df_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == variant]
+        df_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
+
+        # total no. of SNPs
+        total_variant_SNP = df_variant_hom.shape[0] + df_variant_htz.shape[0]
+
+        if df_variant_htz.shape[0]:
+            l_variant_htz = df_variant_htz["ALT_FREQ"]
+
+            mean_ALT_HTZ_prop = round(np.mean(l_variant_htz), 3)
+            std_ALT_HTZ_prop = round(np.std(l_variant_htz), 3)
+            median_ALT_HTZ_prop = round(np.median(l_variant_htz), 3)
+            var_ALT_HTZ_prop = round(np.var(l_variant_htz), 3)
+            min_ALT_HTZ_prop = np.min(l_variant_htz)
+            max_ALT_HTZ_prop = np.max(l_variant_htz)
+
+            to_write += variant + "," + str(total_variant_SNP) + "," + str(df_variant_hom.shape[0]) + \
+                "," + str(df_variant_htz.shape[0]) + "," + \
+                str(mean_ALT_HTZ_prop) + \
+                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
+                        "," + str(max_ALT_HTZ_prop) + "\n"
+            
+            name_stats_file = os.path.join(dir_name_tsv_stats, variant)
+            # plot HTZ pos
+            plot_proportions(df_variant_htz, name_stats_file, variant=True)
+
         else:
-            to_write += variant + ",,,,,,,,\n"
+            to_write += variant + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
     
     # Not lineage
-    df_non_variant = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
-    NL_upper_HTZ_prop_l = []
-    NL_low_HTZ_prop_l = []
+    df_non_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == ""]
+    df_non_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
 
-    for _, row in df_non_variant.iterrows():
-        if row["ALT_FREQ"] > row["REF_FREQ"]:
-            NL_upper_HTZ_prop_l.append(row["ALT_FREQ"])
-            NL_low_HTZ_prop_l.append(row["REF_FREQ"])
-        else:
-            NL_upper_HTZ_prop_l.append(row["REF_FREQ"])
-            NL_low_HTZ_prop_l.append(row["ALT_FREQ"])
+    # total no. of SNPs
+    total_non_variant_SNP = df_non_variant_hom.shape[0] + df_non_variant_htz.shape[0]
+
+    if df_non_variant_htz.shape[0]:
+
+        NL_upper_HTZ_prop_l = []
+
+        for _, row in df_non_variant_htz.iterrows():
+            if row["ALT_FREQ"] > row["REF_FREQ"]:
+                NL_upper_HTZ_prop_l.append(row["ALT_FREQ"])
+
+            else:
+                NL_upper_HTZ_prop_l.append(row["REF_FREQ"])
+
+        
+        # statistics
+        mean_ALT_HTZ_prop = round(np.mean(NL_upper_HTZ_prop_l), 3)
+        std_ALT_HTZ_prop = round(np.std(NL_upper_HTZ_prop_l), 3)
+        median_ALT_HTZ_prop = round(np.median(NL_upper_HTZ_prop_l), 3)
+        var_ALT_HTZ_prop = round(np.var(NL_upper_HTZ_prop_l), 3)
+        min_ALT_HTZ_prop = np.min(NL_upper_HTZ_prop_l)
+        max_ALT_HTZ_prop = np.max(NL_upper_HTZ_prop_l)
+
+        to_write += "Non_variant" + "," + str(total_non_variant_SNP) + "," + str(df_non_variant_hom.shape[0]) + \
+            "," + str(df_non_variant_htz.shape[0]) + "," + \
+                str(mean_ALT_HTZ_prop) + \
+                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
+                        "," + str(max_ALT_HTZ_prop) + "\n"
+
+        name_stats_file = os.path.join(dir_name_tsv_stats, "Non_variant")
+        # plot HTZ pos
+        plot_proportions(df_non_variant_htz, name_stats_file)
     
-    mean_ALT_HTZ_prop_no_variant = round(np.mean(NL_upper_HTZ_prop_l), 3)
-    std_ALT_HTZ_prop_no_variant = round(np.std(NL_upper_HTZ_prop_l), 3)
-    to_write += "No_variant" + "," + str(df_non_variant.shape[0]) + "," + str(mean_ALT_HTZ_prop_no_variant) + "," + str(std_ALT_HTZ_prop_no_variant) + "," + ",,,," + "\n"
+    else:
+        to_write += "Non_variant" + str(total_non_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
 
     stats_file.write(to_write)
     stats_file.close()
-
-    # plot HTZ pos
-    plot_proportions(HTZ_SNVs, name_stats_file)
 
 def include_lineages(args, df_aln_SNV, mutations):
     l_SNPs = {}
@@ -363,5 +426,9 @@ def indetify_variants(df, mutations):
 
             elif pos in list(mut_dict.keys()):
                 lineage[i] += [variant]
+    
+    # If not lineages
+    if len(lineage) == 0:
+        lineage = [[]] * len(df.POS)
 
     return lineage

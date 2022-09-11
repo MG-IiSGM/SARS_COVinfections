@@ -95,7 +95,7 @@ def get_HTZ(df, args, name_tsv, mutations):
             index=False, sep=",")
 
     # HTZ stats
-    utils.get_HTZ_stats(HTZ_SNVs, HTZ_SNVs_explode, mutations, name_tsv, dir_name_tsv)
+    utils.get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
 
     return HTZ_SNVs, HOM_SNVs
 
