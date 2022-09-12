@@ -92,20 +92,13 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
 
     if not variant:
         
-        for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
-            if r > a:
-                high.append(r)
-                low.append(a)
-            else:
-                high.append(a)
-                low.append(r)
+        high = HTZ_SNVs[["REF_FREQ", "ALT_FREQ"]].max(axis=1).to_list()
+        low = HTZ_SNVs[["REF_FREQ", "ALT_FREQ"]].min(axis=1).to_list()
     
     else:
 
-        # Always alt
-        for r, a in zip(HTZ_SNVs.REF_FREQ, HTZ_SNVs.ALT_FREQ):
-            high.append(a)
-            low.append(r)
+        high = HTZ_SNVs["ALT_FREQ"].to_list()
+        low = HTZ_SNVs["REF_FREQ"].to_list()
     
     # plot
     if len(high) < 5:
@@ -114,8 +107,8 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
         width = 20
     else:
         width = 30
-    plt.figure(figsize=(width,15))
 
+    plt.figure(figsize=(width,15))
     plt.title("HTZ positions %s" %(variant_name))
     l_pos = list(HTZ_SNVs.POS)
     for i in range(len(l_pos)):
@@ -167,13 +160,7 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
     # get stats HTZ proportion
     if total_htz:
 
-        upper_HTZ_prop_l = []
-
-        for _, row in HTZ_SNVs.iterrows():
-            if row["ALT_FREQ"] > row["REF_FREQ"]:
-                upper_HTZ_prop_l.append(row["ALT_FREQ"])
-            else:
-                upper_HTZ_prop_l.append(row["REF_FREQ"])
+        upper_HTZ_prop_l = HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
 
         # statistics
         mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
@@ -237,15 +224,7 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
     if df_non_variant_htz.shape[0]:
 
-        NL_upper_HTZ_prop_l = []
-
-        for _, row in df_non_variant_htz.iterrows():
-            if row["ALT_FREQ"] > row["REF_FREQ"]:
-                NL_upper_HTZ_prop_l.append(row["ALT_FREQ"])
-
-            else:
-                NL_upper_HTZ_prop_l.append(row["REF_FREQ"])
-
+        NL_upper_HTZ_prop_l = df_non_variant_htz[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
         
         # statistics
         mean_ALT_HTZ_prop = round(np.mean(NL_upper_HTZ_prop_l), 3)
