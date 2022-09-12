@@ -2,6 +2,10 @@ import argparse
 import os
 import utils
 import mixtas
+import sys
+
+# avoid __pycache__ folder
+sys.dont_write_bytecode = True
 
 # parse arguments (-B)
 parser = argparse.ArgumentParser()
@@ -29,32 +33,38 @@ parser.add_argument("--pangolin", help="pangolin annotation",
 parser.add_argument("--snipit", help="snipit analysis", 
                     action="store_true")
 
-# check arguments
-args = parser.parse_args()
+# main
+def main():
 
-if utils.check_argmunets(args):
-    exit(1)
+    # check arguments
+    args = parser.parse_args()
 
-else:
+    if utils.check_argmunets(args):
+        exit(1)
 
-    # Check out dir
-    utils.check_create_dir(args.out_dir)
+    else:
 
-    # tsv file (SNPs)
-    name_tsv = os.path.basename(args.tsv_file).rstrip(".tsv")
+        # Check out dir
+        utils.check_create_dir(args.out_dir)
 
-    # Parse mutations.
-    mutations = utils.parse_mut(args)
+        # tsv file (SNPs)
+        name_tsv = os.path.basename(args.tsv_file).rstrip(".tsv")
 
-# main function
-df = mixtas.get_lineage(args, name_tsv, mutations)
+        # Parse mutations.
+        mutations = utils.parse_mut(args)
 
-# get HTZ/HOM positions
-HTZ_SNVs, HOM_SNVs = mixtas.get_HTZ(df, args, name_tsv, mutations)
+    # main function
+    df = mixtas.get_lineage(args, name_tsv, mutations)
 
-# get alingment
-mixtas.get_alingment(args, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
+    # get HTZ/HOM positions
+    HTZ_SNVs, HOM_SNVs = mixtas.get_HTZ(df, args, name_tsv, mutations)
 
-# include previous or post episodes
-if args.episode:
-    mixtas.compare_episode(args, name_tsv)
+    # get alingment
+    mixtas.get_alingment(args, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
+
+    # include previous or post episodes
+    if args.episode:
+        mixtas.compare_episode(args, name_tsv)
+
+if __name__ == "__main__":
+    main()
