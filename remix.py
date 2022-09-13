@@ -4,25 +4,18 @@ import utils
 import mixtas
 import sys
 
-# avoid __pycache__ folder
-sys.dont_write_bytecode = True
-
 # parse arguments (-B)
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(description="Script to infer a potential co-infection")
 
 parser.add_argument("tsv_file", help="tsv file to extract htz positions")
-parser.add_argument("--mut_dir", help="directory where all mutation file are located",
-                     required=False, default="../mutations")
-parser.add_argument("--ref_genome", help="file with reference genome", required=False,
-                    default="../COVID_ref.fasta")
 parser.add_argument("--out_dir", help="Output directory", default=".")
 parser.add_argument("--file_sep", help="File separator", default="\t")
 
-parser.add_argument("--get_SNP", help="Get SNVs from a certain lineage", 
+parser.add_argument("--get_SNP", help="Get SNPs from a certain lineage", 
                     default=[], required=False, action='append')
 parser.add_argument("--episode", help="Extra recent episodes (samples) as fasta sequences", 
                     default=[], required=False, action='append')
-parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNV", default=15,
+parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNP", default=15,
                     type=int)
 parser.add_argument("--min_HOM", help="minimum proportion for homocigosis",
                     default=0.85, type=float)
@@ -36,10 +29,13 @@ parser.add_argument("--snipit", help="snipit analysis",
 # main
 def main():
 
+    # Script directory
+    script_dir = os.path.dirname(sys.argv[0])
+
     # check arguments
     args = parser.parse_args()
 
-    if utils.check_argmunets(args):
+    if utils.check_argmunets(args, script_dir):
         exit(1)
 
     else:
@@ -51,7 +47,8 @@ def main():
         name_tsv = os.path.basename(args.tsv_file).rstrip(".tsv")
 
         # Parse mutations.
-        mutations = utils.parse_mut(args)
+        mut_dir = os.path.join(script_dir, "mutations")
+        mutations = utils.parse_mut(mut_dir)
 
     # main function
     df = mixtas.get_lineage(args, name_tsv, mutations)
@@ -60,11 +57,14 @@ def main():
     HTZ_SNVs, HOM_SNVs = mixtas.get_HTZ(df, args, name_tsv, mutations)
 
     # get alingment
-    mixtas.get_alingment(args, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
+    mixtas.get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
 
     # include previous or post episodes
     if args.episode:
-        mixtas.compare_episode(args, name_tsv)
+        mixtas.compare_episode(args, name_tsv, script_dir)
+    
+    # If all OK
+    exit(0)
 
 if __name__ == "__main__":
     main()

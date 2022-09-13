@@ -1,4 +1,5 @@
 import os
+from random import sample
 from turtle import width
 import pandas as pd
 import numpy as np
@@ -17,26 +18,27 @@ def check_create_dir(path):
         os.mkdir(path)
 
 # check initial arguments
-def check_argmunets(args):
+def check_argmunets(args, script_dir):
 
     # Check mutation directory
-    if not os.path.isdir(args.mut_dir):
-        print("%s: No such file or directory" %args.mut_dir)
+    mut_dir = os.path.join(script_dir, "mutations")
+    if not os.path.isdir(mut_dir):
+        print("%s: No such file or directory" %mut_dir)
         return 1
     
     # Check reference genome
-    elif not os.path.isfile(args.ref_genome):
-        print("%s: No such file or directory" %args.ref_genome)
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    if not os.path.isfile(ref_genome):
+        print("%s: No such file or directory" %ref_genome)
         return 1
     
     # Check tsv files
-    elif not os.path.isfile(args.tsv_file):
+    if not os.path.isfile(args.tsv_file):
         print("%s: No such file or directory" %args.tsv_file)
         return 1
     
     # If all OK
-    else:
-        return 0
+    return 0
 
 # read fasta function
 def parse_fasta(file):
@@ -135,6 +137,100 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     plt.axhline(y=high_mean - high_std, color='black', linestyle='--')
     plt.savefig("%s.png" %(name_stats_file))
 
+def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
+    
+    # out_dir_stats
+    dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
+    check_create_dir(dir_name_tsv_stats)
+
+    # out file
+    name_file = os.path.join(dir_name_tsv_stats, name_tsv)
+    out_file = open("%s_inference.txt" %(name_file), "w")
+
+    # Read stats csv
+    stats_df = pd.read_csv(name_stats_file, sep=",", index_col="Lineage").T
+
+    potential_lineages = []
+
+    # CHECK if sample ontains > 90% lineage markers
+    for lineage in stats_df.columns[1:]:
+
+        if lineage in mutations:
+            n_SNPs = len(mutations[lineage])
+
+            if stats_df[lineage].values[0] / n_SNPs > 0.9:
+                potential_lineages.append(lineage)
+
+    # CHECK if % Non_variant > 0.6 or < 0.4
+    if not len(potential_lineages):
+
+        if stats_df["Non_variant"].values[3] > 0.6 or \
+                stats_df["Non_variant"].values[3] < 0.4:
+            out_file.write("\nPotential co-infection between same lineage\n")
+        else:
+            out_file.write("\nNo co-infection\n")
+        out_file.close()
+        return 
+    else:
+        out_file.write("\nPotential lineages\n")
+        for lineage in potential_lineages:
+            out_file.write(lineage)
+            out_file.write("\n")
+    
+    potential_coinfection = []
+    for i in range(len(potential_lineages)):
+        lineage1 = potential_lineages[i]
+
+        for e in range(len(potential_lineages)):
+            lineage2 = potential_lineages[e]
+            complementary = False
+            homo = False
+
+            if e > i:
+                
+                # CHeck if % complementarity
+                if stats_df[lineage1].values[3] + \
+                    stats_df[lineage2].values[3] > 0.93 and \
+                   stats_df[lineage1].values[3] + \
+                    stats_df[lineage2].values[3] < 1.03:
+                    complementary = True
+                
+                # CHeck if 90 % in Homozigosys:
+                share_lineages = [elem for elem in HOM_SNVs["LINEAGE"].to_list() if len(elem)]
+                n_pos = 0
+                n_total_pos = 0
+                for index in range(len(share_lineages)):
+                    l_lineages = share_lineages[index]
+
+                    if lineage1 in l_lineages:
+                        n_total_pos += 1
+                    if lineage1 in l_lineages and lineage2 in l_lineages:
+                        n_pos += 1
+
+                if n_pos / n_total_pos > 0.9:
+                    homo = True
+
+                if complementary and homo:
+                    potential_coinfection.append([lineage1, lineage2])
+    
+    # CHECK if % Non_variant > 0.6 or < 0.4
+    if not len(potential_coinfection):
+
+        if stats_df["Non_variant"].values[3] > 0.6 or \
+                stats_df["Non_variant"].values[3] < 0.4:
+            out_file.write("\nPotential co-infection between same lineage\n")
+        else:
+            out_file.write("\nNo co-infection\n")
+        out_file.close()
+        return 
+    else:
+        out_file.write("\nPotential co-infections pairs\n")
+        for pair in potential_coinfection:
+            out_file.write(" - ".join(pair))
+            out_file.write("\n")
+    
+    out_file.close()    
+
 
 def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
@@ -144,7 +240,9 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
     # stats file
     name_stats_file = os.path.join(dir_name_tsv_stats, name_tsv)
+    name_stats_file_ = name_stats_file[:]
     stats_file = open("%s_stats.csv" %(name_stats_file), "w")
+    # header
     to_write = "Lineage,total_SNP,total_HOM,total_HTZ,mean,std,median,var,min,max\n"
 
     # explode
@@ -213,7 +311,7 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
             plot_proportions(df_variant_htz, name_stats_file, variant=True)
 
         else:
-            to_write += variant + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
+            to_write += variant + "," + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
     
     # Not lineage
     df_non_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == ""]
@@ -250,6 +348,8 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
     stats_file.write(to_write)
     stats_file.close()
+
+    return "%s_stats.csv" %(name_stats_file_)
 
 def include_lineages(args, df_aln_SNV, mutations):
     l_SNPs = {}
@@ -289,12 +389,16 @@ def include_lineages(args, df_aln_SNV, mutations):
 
     return df_concat
 
-def mini_compare(out_epi_dir):
+def mini_compare(aln_name):
 
-    # Compare samples
+    # Parse alingment
     l_samples = {}
 
-    f = open(os.path.join(out_epi_dir, "episode_aln.aln"), "r")
+    # aln directory
+    aln_dir = os.path.dirname(aln_name)
+
+    # Parse alingment
+    f = open(aln_name, "r")
     header = ""
     ref_sequence = ""
     for line in f:
@@ -310,22 +414,31 @@ def mini_compare(out_epi_dir):
 
     df_episodes = pd.DataFrame(list(l_samples.values()), index = l_samples.keys()).T
     
-    compare_row = []
-    for column in df_episodes.columns[1:]:
-        l = []
-        for c in df_episodes.columns[1:]:
-            l.append(sum(
+    # COMAPARE ROWS
+    samples = list(df_episodes.columns[1:])
+    row = len(samples)
+    matrix = np.zeros((row, row - 1))
+
+    for i in range(len(samples)):
+        column = samples[i]
+
+        for e in range(len(samples)):
+            c = samples[e]
+
+            # Fill just one part of the matrix
+            if e > i:
+                matrix[e, i] = sum(
                 (df_episodes[column] != df_episodes[c]) & 
             ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
              (df_episodes[c] != "N") & (df_episodes[c] != "-") &
              (df_episodes[column] != "X") & (df_episodes[c] != "X")
-                ))
-        compare_row.append(l)
-    
-    compare_df = pd.DataFrame(compare_row, columns = list(df_episodes.columns[1:]), 
-                index = list(df_episodes.columns[1:]))
-    
-    compare_df.to_csv(os.path.join(out_epi_dir, "episode_compare.csv"), sep=",")
+                )
+
+                if e < row - 1:
+                    matrix[i, e] = "nan"
+
+    compare_df = pd.DataFrame(matrix, columns=samples[:-1], index=samples)    
+    compare_df.to_csv(os.path.join(aln_dir, "episode_compare.csv"), sep=",")
 
 def color_df(row):
 
@@ -364,20 +477,20 @@ def color_df(row):
 
     return l_colors
 
-def parse_mut(args):
+def parse_mut(mut_dir):
 
     # Dictionary to store mutations
     d_mut = {}
 
     # List mutation files
-    mut_files = [file for file in os.listdir(args.mut_dir) if file.endswith(".csv")]
+    mut_files = [file for file in os.listdir(mut_dir) if file.endswith(".csv")]
 
     # Parse files to get mutations
     for file in mut_files:
         d_var = {}
-        variant = file.replace(".csv", "")
+        variant = ".".join(file.split(".")[:-1])
 
-        f = open(os.path.join(args.mut_dir, file), "r")
+        f = open(os.path.join(mut_dir, file), "r")
         for l in f:
             line = l.strip().replace('"', '').split(",")
 
@@ -385,6 +498,11 @@ def parse_mut(args):
             aa_mut = line[0]
             # base mutation (A3456G)
             base_mut = line[1]
+
+            # if indel skip
+            if base_mut.startswith("-"):
+                continue
+
             # Position in genome (3456)
             pos = int(line[1][1:-1])
             # Store -> {3456: [A34L, A3456G]}

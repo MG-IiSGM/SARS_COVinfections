@@ -27,10 +27,10 @@ def get_lineage(args, name_tsv, mutations):
     # Discard indel positions
     df = df[df.ALT.str.len() == 1]
 
-    # Select SNVs with a minimum DP
+    # Select SNPs with a minimum DP
     df = df[df.TOTAL_DP > args.min_DP]
 
-    # Set gen of each SNV
+    # Set gen of each SNP
     df["GEN"] = [utils.pos_to_gen(pos) for pos in df.POS]
 
     # Round to 3 ALT_FREQ
@@ -95,17 +95,21 @@ def get_HTZ(df, args, name_tsv, mutations):
             index=False, sep=",")
 
     # HTZ stats
-    utils.get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
+    name_stats_file = utils.get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
+
+    # Infer if co-infection
+    utils.infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
 
     return HTZ_SNVs, HOM_SNVs
 
-def get_alingment(args, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations):
+def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations):
 
     # directories
     dir_name_tsv = os.path.join(args.out_dir, name_tsv)
 
     # Parse reference sequence
-    l_ref_sequence, header, ref_sequence = utils.parse_fasta(args.ref_genome)
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    l_ref_sequence, header, ref_sequence = utils.parse_fasta(ref_genome)
 
     # List with Sample1 (<ALT_FREQ), Sample1+2 and Sample2 (>ALT_FREQ)
     genomes = [l_ref_sequence.copy(), l_ref_sequence.copy(), l_ref_sequence.copy()]
@@ -265,7 +269,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
                     "%s_HTZ_aln.png" %(out_aln_dir + "/" + name_tsv),
                     max_cols=-1)
 
-def compare_episode(args, name_tsv):
+def compare_episode(args, name_tsv, script_dir):
     
     # GENERATE ALINGMENT
     # out episode dir
@@ -278,7 +282,8 @@ def compare_episode(args, name_tsv):
     alin_episode = open(os.path.join(out_epi_dir, "episode_aln.fasta"), "w")
 
     # Parse reference sequence
-    l_ref_sequence, header_ref, ref_sequence = utils.parse_fasta(args.ref_genome)
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    l_ref_sequence, header_ref, ref_sequence = utils.parse_fasta(ref_genome)
 
     # Sample1
     S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/Sample1.fasta")
@@ -303,9 +308,10 @@ def compare_episode(args, name_tsv):
     alin_episode.close()
 
     # Align samples with mafft
+    aln_name = os.path.join(out_epi_dir, "episode_aln.aln")
     try:
         subprocess.call("mafft --quiet --maxiterate 100 %s  > %s" %(os.path.join(out_epi_dir, "episode_aln.fasta"),
-                        os.path.join(out_epi_dir, "episode_aln.aln")),
+                        aln_name),
                         shell=True)
     except:
         print("MAFFT aligner is not installed")
@@ -313,8 +319,8 @@ def compare_episode(args, name_tsv):
 
     # snipit
     if args.snipit:
-        subprocess.run(["snipit", os.path.join(out_epi_dir, "episode_aln.aln"), "-f", "pdf",
+        subprocess.run(["snipit", aln_name, "-f", "pdf",
                             "--flip-vertical", "-o",
-                            os.path.join(out_epi_dir, "episode_aln")])
+                            aln_name.replace(".aln", "")])
     
-    utils.mini_compare(out_epi_dir)
+    utils.mini_compare(aln_name)
