@@ -1,11 +1,8 @@
 # imports
 import dataframe_image as dfi
-import subprocess
-import os
+import subprocess, os, warnings, utils
 import pandas as pd
 import numpy as np
-import utils
-import warnings
 warnings.filterwarnings("ignore")
 
 def get_lineage(args, name_tsv, mutations):
@@ -51,7 +48,7 @@ def get_lineage(args, name_tsv, mutations):
             "ALT_AA", "GEN"]]
 
     # Get SNPs lineage
-    df["LINEAGE"] = utils.indetify_variants(df, mutations)
+    df["LINEAGE"] = utils.indetify_variants(df, mutations, args)
 
     # separate lineages label 
     df_explode = df.explode("LINEAGE")

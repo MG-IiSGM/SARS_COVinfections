@@ -1,11 +1,9 @@
-import os
-from random import sample
-from turtle import width
+import os, multiprocessing
 import pandas as pd
 import numpy as np
 from pandarallel import pandarallel
 import matplotlib.pyplot as plt
-import multiprocessing
+
 nproc = multiprocessing.cpu_count()
 pandarallel.initialize(nb_workers=nproc, verbose=0)
 
@@ -152,14 +150,20 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
 
     potential_lineages = []
 
-    # CHECK if sample ontains > 90% lineage markers
+    # CHECK if sample ontains > 90% lineage markers (total)
+    l_marker_perc = []
     for lineage in stats_df.columns[1:]:
 
         if lineage in mutations:
             n_SNPs = len(mutations[lineage])
 
-            if stats_df[lineage].values[0] / n_SNPs > 0.9:
+            markers_percentage = round(stats_df[lineage].values[0] / n_SNPs, 3)
+            if markers_percentage > 0.9:
+                l_marker_perc.append(markers_percentage)
                 potential_lineages.append(lineage)
+            else:
+                to_write = "\n%s harbours %s" %(lineage, str(markers_percentage)) + " of markers\n"
+                out_file.write(to_write)
 
     # CHECK if % Non_variant > 0.6 or < 0.4
     if not len(potential_lineages):
@@ -172,9 +176,12 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
         out_file.close()
         return 
     else:
-        out_file.write("\nPotential lineages\n")
-        for lineage in potential_lineages:
+        out_file.write("\nPotential lineages (SNP %)\n")
+        for i in range(len(potential_lineages)):
+            lineage = potential_lineages[i]
             out_file.write(lineage)
+            out_file.write(" ")
+            out_file.write(str(l_marker_perc[i]))
             out_file.write("\n")
     
     potential_coinfection = []
@@ -188,14 +195,18 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
 
             if e > i:
                 
-                # CHeck if % complementarity
-                if stats_df[lineage1].values[3] + \
-                    stats_df[lineage2].values[3] > 0.93 and \
-                   stats_df[lineage1].values[3] + \
-                    stats_df[lineage2].values[3] < 1.03:
+                # Check if % complementarity
+                sum_percentages = stats_df[lineage1].values[3] + \
+                    stats_df[lineage2].values[3]
+                if sum_percentages > 0.93 and sum_percentages < 1.03:
                     complementary = True
+                else:
+                    to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(sum_percentages, 2))) + \
+                    " complementarity (lineage1 %" + " + lineage2 %)\n"
+                    out_file.write(to_write)
                 
-                # CHeck if 90 % in Homozigosys:
+                # Check if 90 % in Homozigosys:
+                # List of non empty lineages in HOM_SNVs dataframe
                 share_lineages = [elem for elem in HOM_SNVs["LINEAGE"].to_list() if len(elem)]
                 n_pos = 0
                 n_total_pos = 0
@@ -207,8 +218,13 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
                     if lineage1 in l_lineages and lineage2 in l_lineages:
                         n_pos += 1
 
-                if n_pos / n_total_pos > 0.9:
+                hom_percentage = n_pos / n_total_pos
+                if hom_percentage > 0.9:
                     homo = True
+                else:
+                    to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(hom_percentage, 2))) + \
+                    " positions shared in Homo\n"
+                    out_file.write(to_write)
 
                 if complementary and homo:
                     potential_coinfection.append([lineage1, lineage2])
@@ -224,9 +240,21 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
         out_file.close()
         return 
     else:
-        out_file.write("\nPotential co-infections pairs\n")
+        sum_total_SNP = []
+        out_file.write("\nPotential co-infections pairs (Total SNPs both)\n")
         for pair in potential_coinfection:
-            out_file.write(" - ".join(pair))
+            l1 = pair[0]
+            l2 = pair[1]
+            sum_total_SNP.append(stats_df[l1].values[0] + stats_df[l2].values[0])
+            to_write = " - ".join(pair) + " " + str(stats_df[l1].values[0] + stats_df[l2].values[0])
+            out_file.write(to_write)
+            out_file.write("\n")
+
+        
+        out_file.write("\nThe best potential co-infection\n")
+        best_indexes = np.argwhere(sum_total_SNP == np.amax(sum_total_SNP)).flatten().tolist()
+        for index in best_indexes:
+            out_file.write(" - ".join(potential_coinfection[index]))
             out_file.write("\n")
     
     out_file.close()    
@@ -283,6 +311,7 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
 
     # variant stats
     for variant in mutations:
+
         df_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == variant]
         df_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
 
@@ -378,12 +407,6 @@ def include_lineages(args, df_aln_SNV, mutations):
         l_SNPs_df[variant] = l_SNPs[variant]
     l_SNPs_df.index = df_aln_SNV.columns
 
-    # Select only lineages specified in get_SNPs
-    if len(args.get_SNP):
-        for variant in mutations:
-            if variant not in args.get_SNP:
-                l_SNPs_df.drop(columns=[variant], inplace=True)
-
     # Concatenate with SNP alignment
     df_concat = pd.concat([df_aln_SNV, l_SNPs_df.T], sort=False)
 
@@ -477,7 +500,7 @@ def color_df(row):
 
     return l_colors
 
-def parse_mut(mut_dir):
+def parse_mut(mut_dir, args):
 
     # Dictionary to store mutations
     d_mut = {}
@@ -489,6 +512,10 @@ def parse_mut(mut_dir):
     for file in mut_files:
         d_var = {}
         variant = ".".join(file.split(".")[:-1])
+
+        # Select only include variants
+        if len(args.include) and variant not in args.include:
+            continue
 
         f = open(os.path.join(mut_dir, file), "r")
         for l in f:
@@ -515,7 +542,7 @@ def parse_mut(mut_dir):
     
     return d_mut
 
-def indetify_variants(df, mutations):
+def indetify_variants(df, mutations, args):
 
     # List to store lineages
     lineage = []

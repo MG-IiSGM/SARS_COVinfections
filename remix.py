@@ -1,8 +1,4 @@
-import argparse
-import os
-import utils
-import mixtas
-import sys
+import argparse, os, utils, mixtas, sys
 
 # parse arguments (-B)
 parser = argparse.ArgumentParser(description="Script to infer a potential co-infection")
@@ -11,7 +7,7 @@ parser.add_argument("tsv_file", help="tsv file to extract htz positions")
 parser.add_argument("--out_dir", help="Output directory", default=".")
 parser.add_argument("--file_sep", help="File separator", default="\t")
 
-parser.add_argument("--get_SNP", help="Get SNPs from a certain lineage", 
+parser.add_argument("--include", help="Get SNPs from a certain lineage", 
                     default=[], required=False, action='append')
 parser.add_argument("--episode", help="Extra recent episodes (samples) as fasta sequences", 
                     default=[], required=False, action='append')
@@ -30,7 +26,8 @@ parser.add_argument("--snipit", help="snipit analysis",
 def main():
 
     # Script directory
-    script_dir = os.path.dirname(sys.argv[0])
+    abs_path = os.path.abspath(sys.argv[0])
+    script_dir = os.path.dirname(abs_path)
 
     # check arguments
     args = parser.parse_args()
@@ -48,7 +45,7 @@ def main():
 
         # Parse mutations.
         mut_dir = os.path.join(script_dir, "mutations")
-        mutations = utils.parse_mut(mut_dir)
+        mutations = utils.parse_mut(mut_dir, args)
 
     # main function
     df = mixtas.get_lineage(args, name_tsv, mutations)
