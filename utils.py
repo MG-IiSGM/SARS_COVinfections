@@ -135,7 +135,7 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     plt.axhline(y=high_mean - high_std, color='black', linestyle='--')
     plt.savefig("%s.png" %(name_stats_file))
 
-def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
+def infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
     
     # out_dir_stats
     dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
@@ -158,7 +158,7 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
             n_SNPs = len(mutations[lineage])
 
             markers_percentage = round(stats_df[lineage].values[0] / n_SNPs, 3)
-            if markers_percentage > 0.9:
+            if markers_percentage > args.min_SNP_percentage:
                 l_marker_perc.append(markers_percentage)
                 potential_lineages.append(lineage)
             else:
@@ -196,9 +196,11 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
             if e > i:
                 
                 # Check if % complementarity
+                # If sum proportion lineage 1 + proportion
+                # lineage 2 is close to 1
                 sum_percentages = stats_df[lineage1].values[3] + \
                     stats_df[lineage2].values[3]
-                if sum_percentages > 0.93 and sum_percentages < 1.03:
+                if sum_percentages > 0.94 and sum_percentages < 1.03:
                     complementary = True
                 else:
                     to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(sum_percentages, 2))) + \
@@ -206,6 +208,7 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
                     out_file.write(to_write)
                 
                 # Check if 90 % in Homozigosys:
+                # Share lineage SNPs are in Homozigosys
                 # List of non empty lineages in HOM_SNVs dataframe
                 share_lineages = [elem for elem in HOM_SNVs["LINEAGE"].to_list() if len(elem)]
                 n_pos = 0
@@ -219,7 +222,7 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
                         n_pos += 1
 
                 hom_percentage = n_pos / n_total_pos
-                if hom_percentage > 0.9:
+                if hom_percentage > args.min_SNP_percentage:
                     homo = True
                 else:
                     to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(hom_percentage, 2))) + \
@@ -232,8 +235,9 @@ def infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv
     # CHECK if % Non_variant > 0.6 or < 0.4
     if not len(potential_coinfection):
 
-        if stats_df["Non_variant"].values[3] > 0.6 or \
-                stats_df["Non_variant"].values[3] < 0.4:
+        if (stats_df["Non_variant"].values[3] > 0.6 or \
+                stats_df["Non_variant"].values[3] < 0.4) and \
+                    stats_df["Non_variant"].values[2] > args.min_SNP_pos:
             out_file.write("\nPotential co-infection between same lineage\n")
         else:
             out_file.write("\nNo co-infection\n")

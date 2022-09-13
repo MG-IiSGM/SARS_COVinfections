@@ -95,7 +95,7 @@ def get_HTZ(df, args, name_tsv, mutations):
     name_stats_file = utils.get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
 
     # Infer if co-infection
-    utils.infer_infection(name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
+    utils.infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
 
     return HTZ_SNVs, HOM_SNVs
 
