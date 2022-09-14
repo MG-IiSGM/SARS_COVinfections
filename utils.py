@@ -165,11 +165,11 @@ def infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_na
                 to_write = "\n%s harbours %s" %(lineage, str(markers_percentage)) + " of markers\n"
                 out_file.write(to_write)
 
-    # CHECK if % Non_variant > 0.6 or < 0.4
+    # CHECK if % Non_variant > 0.6
     if not len(potential_lineages):
 
-        if stats_df["Non_variant"].values[3] > 0.6 or \
-                stats_df["Non_variant"].values[3] < 0.4:
+        if stats_df["Non_variant"].values[3] > 0.6 and \
+                    stats_df["Non_variant"].values[2] > args.min_SNP_pos:
             out_file.write("\nPotential co-infection between same lineage\n")
         else:
             out_file.write("\nNo co-infection\n")
@@ -214,11 +214,11 @@ def infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_na
                 n_pos = 0
                 n_total_pos = 0
                 for index in range(len(share_lineages)):
-                    l_lineages = share_lineages[index]
+                    list_lineages = share_lineages[index]
 
-                    if lineage1 in l_lineages:
+                    if lineage1 in list_lineages:
                         n_total_pos += 1
-                    if lineage1 in l_lineages and lineage2 in l_lineages:
+                    if lineage1 in list_lineages and lineage2 in list_lineages:
                         n_pos += 1
 
                 hom_percentage = n_pos / n_total_pos
@@ -232,11 +232,10 @@ def infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_na
                 if complementary and homo:
                     potential_coinfection.append([lineage1, lineage2])
     
-    # CHECK if % Non_variant > 0.6 or < 0.4
+    # CHECK if % Non_variant > 0.6
     if not len(potential_coinfection):
 
-        if (stats_df["Non_variant"].values[3] > 0.6 or \
-                stats_df["Non_variant"].values[3] < 0.4) and \
+        if stats_df["Non_variant"].values[3] > 0.6 and \
                     stats_df["Non_variant"].values[2] > args.min_SNP_pos:
             out_file.write("\nPotential co-infection between same lineage\n")
         else:
