@@ -190,25 +190,27 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
     utils.check_create_dir(out_seq_dir)
 
     # Sample1
-    sample1 = open(out_seq_dir + "/Sample1.fasta", "w")
-    to_write = ">Sample1\n" + "".join(sequences[0]) + "\n"
+    sample1 = open(out_seq_dir + "/" + dir_name_tsv + "_1.fasta", "w")
+    to_write = ">" + name_tsv + "_1\n" + "".join(sequences[0]) + "\n"
     sample1.write(to_write)
     sample1.close()
 
     if args.pangolin:
-        subprocess.run(["pangolin", out_seq_dir + "/Sample1.fasta", "--outdir", out_seq_dir,
-                            "--outfile", "Sample1_pangolin.csv",
+        subprocess.run(["pangolin", out_seq_dir + "/" + dir_name_tsv + "_1.fasta",
+                             "--outdir", out_seq_dir,
+                            "--outfile", dir_name_tsv + "_1_pangolin.csv",
                             "--max-ambig", "0.6"])
 
     # Sample2
-    sample2 = open(out_seq_dir + "/Sample2.fasta", "w")
-    to_write = ">Sample2\n" + "".join(sequences[2]) + "\n"
+    sample2 = open(out_seq_dir + "/" + dir_name_tsv + "_2.fasta", "w")
+    to_write = ">" + name_tsv + "_2\n" + "".join(sequences[2]) + "\n"
     sample2.write(to_write)
     sample2.close()
 
     if args.pangolin:
-        subprocess.run(["pangolin", out_seq_dir + "/Sample2.fasta", "--outdir", out_seq_dir,
-                            "--outfile", "Sample2_pangolin.csv",
+        subprocess.run(["pangolin", out_seq_dir + "/" + dir_name_tsv + "_2.fasta",
+                             "--outdir", out_seq_dir,
+                            "--outfile", dir_name_tsv + "_2_pangolin.csv",
                             "--max-ambig", "0.6"])
     
     aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
@@ -222,10 +224,11 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
     # Convert alingment to dataframe
     coordinates = list(range(1, len(genomes[0]) + 1))
     df_aln = pd.DataFrame([l_ref_sequence] + genomes, columns = coordinates,
-        index=["Reference", "Sample1", "Sample1+2", "Sample2"])
+        index=["Reference", name_tsv + "_1", 
+        name_tsv + "_1+2", name_tsv + "_2"])
     df_aln_t = df_aln.T
-    df_aln_SNV = df_aln_t[(df_aln_t["Reference"] != df_aln_t["Sample1"]) | 
-                    (df_aln_t["Reference"] != df_aln_t["Sample2"])].T
+    df_aln_SNV = df_aln_t[(df_aln_t["Reference"] != df_aln_t[name_tsv + "_1"]) | 
+                    (df_aln_t["Reference"] != df_aln_t[name_tsv + "_2"])].T
     
     # Set position depth
     position_dp = []
@@ -254,8 +257,8 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
     
     # Select only HTZ positions in Alingment
     df_concat_t = df_concat.T
-    df_concat_HTZ = df_concat_t[(df_concat_t["Sample1"] != df_concat_t["Sample2"]) &
-                    (df_concat_t["Sample1"] != "X") & (df_concat_t["Sample2"] != "X")]
+    df_concat_HTZ = df_concat_t[(df_concat_t[name_tsv + "_1"] != df_concat_t[name_tsv + "_2"]) &
+                    (df_concat_t[name_tsv + "_1"] != "X") & (df_concat_t[name_tsv + "_2"] != "X")]
     df_concat_HTZ = df_concat_HTZ.T
 
     # Store df
@@ -283,10 +286,10 @@ def compare_episode(args, name_tsv, script_dir):
     l_ref_sequence, header_ref, ref_sequence = utils.parse_fasta(ref_genome)
 
     # Sample1
-    S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/Sample1.fasta")
+    S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/" + dir_name_tsv + "_1.fasta")
 
     # Sample2
-    S2_seq_l, header_S2, S2_sequence = utils.parse_fasta(out_seq_dir + "/Sample2.fasta")
+    S2_seq_l, header_S2, S2_sequence = utils.parse_fasta(out_seq_dir + "/" + dir_name_tsv + "_2.fasta")
 
     # d to store other episodes
     d_episodes = {}
