@@ -1,0 +1,234 @@
+
+BA.3 harbours 0.814 of markers
+
+B.1.1.7 harbours 0.368 of markers
+
+BA.4 harbours 0.588 of markers
+
+BA.2 harbours 0.627 of markers
+
+BA.5.1 harbours 0.64 of markers
+
+BA.2.36 harbours 0.615 of markers
+
+B.1.177 harbours 0.5 of markers
+
+Potential lineages (SNP %)
+AY.43 0.893
+AY.127 0.897
+C.39 1.0
+BA.1 0.935
+B.1.617.2 1.0
+AY.124 0.867
+BA.1.1.1 0.896
+BA.1.17 0.915
+B.1 1.0
+B.1.1 1.0
+BA.1.1 0.915
+AY.122 0.926
+
+AY.43 and AY.127 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and C.39 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and C.39 have 0.4 positions shared in Homo
+
+AY.43 and BA.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and BA.1 have 0.8 positions shared in Homo
+
+AY.43 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1.617.2 have 0.4 positions shared in Homo
+
+AY.43 and AY.124 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and BA.1.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and BA.1.1.1 have 0.8 positions shared in Homo
+
+AY.43 and BA.1.17 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and BA.1.17 have 0.8 positions shared in Homo
+
+AY.43 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1 have 0.4 positions shared in Homo
+
+AY.43 and B.1.1 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1.1 have 0.4 positions shared in Homo
+
+AY.43 and BA.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and BA.1.1 have 0.8 positions shared in Homo
+
+AY.43 and AY.122 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and C.39 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and C.39 have 0.33 positions shared in Homo
+
+AY.127 and BA.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and BA.1 have 0.83 positions shared in Homo
+
+AY.127 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1.617.2 have 0.33 positions shared in Homo
+
+AY.127 and AY.124 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and BA.1.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and BA.1.1.1 have 0.83 positions shared in Homo
+
+AY.127 and BA.1.17 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and BA.1.17 have 0.83 positions shared in Homo
+
+AY.127 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1 have 0.33 positions shared in Homo
+
+AY.127 and B.1.1 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1.1 have 0.33 positions shared in Homo
+
+AY.127 and BA.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and BA.1.1 have 0.83 positions shared in Homo
+
+AY.127 and AY.122 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and AY.122 have 0.83 positions shared in Homo
+
+C.39 and BA.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and AY.124 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+C.39 and BA.1.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+C.39 and BA.1.17 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and BA.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+C.39 and AY.122 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.1 and B.1.617.2 have 0.25 positions shared in Homo
+
+BA.1 and AY.124 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and AY.124 have 0.62 positions shared in Homo
+
+BA.1 and BA.1.1.1 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and BA.1.17 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.1 and B.1 have 0.25 positions shared in Homo
+
+BA.1 and B.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and B.1.1 have 0.25 positions shared in Homo
+
+BA.1 and BA.1.1 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and AY.122 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+BA.1 and AY.122 have 0.5 positions shared in Homo
+
+B.1.617.2 and AY.124 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and BA.1.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and BA.1.17 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and BA.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and AY.122 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.124 and BA.1.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.124 and BA.1.1.1 have 0.83 positions shared in Homo
+
+AY.124 and BA.1.17 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.124 and BA.1.17 have 0.83 positions shared in Homo
+
+AY.124 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.124 and B.1 have 0.33 positions shared in Homo
+
+AY.124 and B.1.1 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+AY.124 and B.1.1 have 0.33 positions shared in Homo
+
+AY.124 and BA.1.1 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+AY.124 and BA.1.1 have 0.83 positions shared in Homo
+
+AY.124 and AY.122 have 0.64 complementarity (lineage1 % + lineage2 %)
+
+AY.124 and AY.122 have 0.83 positions shared in Homo
+
+BA.1.1.1 and BA.1.17 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1.1 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.1.1.1 and B.1 have 0.25 positions shared in Homo
+
+BA.1.1.1 and B.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1.1 and B.1.1 have 0.25 positions shared in Homo
+
+BA.1.1.1 and BA.1.1 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1.1 and AY.122 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1.1 and AY.122 have 0.5 positions shared in Homo
+
+BA.1.17 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.1.17 and B.1 have 0.25 positions shared in Homo
+
+BA.1.17 and B.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+BA.1.17 and B.1.1 have 0.25 positions shared in Homo
+
+BA.1.17 and BA.1.1 have 1.21 complementarity (lineage1 % + lineage2 %)
+
+BA.1.17 and AY.122 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+BA.1.17 and AY.122 have 0.5 positions shared in Homo
+
+B.1 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1 and BA.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1 and AY.122 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.1 and BA.1.1 have 1.08 complementarity (lineage1 % + lineage2 %)
+
+B.1.1 and AY.122 have 0.79 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1 and AY.122 have 0.93 complementarity (lineage1 % + lineage2 %)
+
+BA.1.1 and AY.122 have 0.5 positions shared in Homo
+
+Potential co-infections pairs (Total SNPs both)
+C.39 - B.1.1 10.0
+
+The best potential co-infection
+C.39 - B.1.1

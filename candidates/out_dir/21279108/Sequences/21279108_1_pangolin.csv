@@ -1,0 +1,2 @@
+taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note
+21279108_1,XC,0.0,,,,,,PUSHER-v1.14,4.1.2,0.3.17,v0.1.10,False,pass,Ambiguous_content:0.02,Usher placements: XC(1/1)

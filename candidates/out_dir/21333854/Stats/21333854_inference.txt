@@ -1,0 +1,65 @@
+
+BA.3 harbours 0.163 of markers
+
+B.1.1.7 harbours 0.316 of markers
+
+BA.4 harbours 0.176 of markers
+
+BA.2 harbours 0.176 of markers
+
+BA.5.1 harbours 0.2 of markers
+
+C.39 harbours 0.6 of markers
+
+BA.1 harbours 0.174 of markers
+
+AY.124 harbours 0.833 of markers
+
+BA.2.36 harbours 0.173 of markers
+
+BA.1.1.1 harbours 0.188 of markers
+
+B.1.177 harbours 0.5 of markers
+
+BA.1.17 harbours 0.17 of markers
+
+B.1.1 harbours 0.6 of markers
+
+BA.1.1 harbours 0.191 of markers
+
+Potential lineages (SNP %)
+AY.43 0.964
+AY.127 0.862
+B.1.617.2 1.0
+B.1 1.0
+AY.122 0.926
+
+AY.43 and AY.127 have 0.88 complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1.617.2 have 0.11 positions shared in Homo
+
+AY.43 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.43 and B.1 have 0.11 positions shared in Homo
+
+AY.43 and AY.122 have 0.88 complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1.617.2 have 0.12 positions shared in Homo
+
+AY.127 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+AY.127 and B.1 have 0.12 positions shared in Homo
+
+AY.127 and AY.122 have 0.88 complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and AY.122 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1 and AY.122 have nan complementarity (lineage1 % + lineage2 %)
+
+No co-infection

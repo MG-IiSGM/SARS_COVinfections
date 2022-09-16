@@ -190,27 +190,27 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations)
     utils.check_create_dir(out_seq_dir)
 
     # Sample1
-    sample1 = open(out_seq_dir + "/" + dir_name_tsv + "_1.fasta", "w")
+    sample1 = open(out_seq_dir + "/" + name_tsv + "_1.fasta", "w")
     to_write = ">" + name_tsv + "_1\n" + "".join(sequences[0]) + "\n"
     sample1.write(to_write)
     sample1.close()
 
     if args.pangolin:
-        subprocess.run(["pangolin", out_seq_dir + "/" + dir_name_tsv + "_1.fasta",
+        subprocess.run(["pangolin", out_seq_dir + "/" + name_tsv + "_1.fasta",
                              "--outdir", out_seq_dir,
-                            "--outfile", dir_name_tsv + "_1_pangolin.csv",
+                            "--outfile", name_tsv + "_1_pangolin.csv",
                             "--max-ambig", "0.6"])
 
     # Sample2
-    sample2 = open(out_seq_dir + "/" + dir_name_tsv + "_2.fasta", "w")
+    sample2 = open(out_seq_dir + "/" + name_tsv + "_2.fasta", "w")
     to_write = ">" + name_tsv + "_2\n" + "".join(sequences[2]) + "\n"
     sample2.write(to_write)
     sample2.close()
 
     if args.pangolin:
-        subprocess.run(["pangolin", out_seq_dir + "/" + dir_name_tsv + "_2.fasta",
+        subprocess.run(["pangolin", out_seq_dir + "/" + name_tsv + "_2.fasta",
                              "--outdir", out_seq_dir,
-                            "--outfile", dir_name_tsv + "_2_pangolin.csv",
+                            "--outfile", name_tsv + "_2_pangolin.csv",
                             "--max-ambig", "0.6"])
     
     aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
@@ -286,10 +286,10 @@ def compare_episode(args, name_tsv, script_dir):
     l_ref_sequence, header_ref, ref_sequence = utils.parse_fasta(ref_genome)
 
     # Sample1
-    S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/" + dir_name_tsv + "_1.fasta")
+    S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/" + name_tsv + "_1.fasta")
 
     # Sample2
-    S2_seq_l, header_S2, S2_sequence = utils.parse_fasta(out_seq_dir + "/" + dir_name_tsv + "_2.fasta")
+    S2_seq_l, header_S2, S2_sequence = utils.parse_fasta(out_seq_dir + "/" + name_tsv + "_2.fasta")
 
     # d to store other episodes
     d_episodes = {}

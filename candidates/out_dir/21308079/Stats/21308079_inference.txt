@@ -1,0 +1,50 @@
+
+BA.3 harbours 0.209 of markers
+
+AY.43 harbours 0.786 of markers
+
+B.1.1.7 harbours 0.368 of markers
+
+BA.4 harbours 0.176 of markers
+
+AY.127 harbours 0.759 of markers
+
+BA.2 harbours 0.196 of markers
+
+BA.5.1 harbours 0.22 of markers
+
+BA.1 harbours 0.217 of markers
+
+AY.124 harbours 0.833 of markers
+
+BA.2.36 harbours 0.192 of markers
+
+BA.1.1.1 harbours 0.208 of markers
+
+B.1.177 harbours 0.5 of markers
+
+BA.1.17 harbours 0.213 of markers
+
+BA.1.1 harbours 0.213 of markers
+
+AY.122 harbours 0.815 of markers
+
+Potential lineages (SNP %)
+C.39 1.0
+B.1.617.2 1.0
+B.1 1.0
+B.1.1 1.0
+
+C.39 and B.1.617.2 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1.1 have 1.23 complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1.617.2 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+B.1 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+Potential co-infection between same lineage

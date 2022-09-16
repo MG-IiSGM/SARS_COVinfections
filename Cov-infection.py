@@ -15,7 +15,7 @@ parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNP"
                     type=int)
 parser.add_argument("--min_HOM", help="minimum proportion for homocigosis",
                     default=0.85, type=float)
-parser.add_argument("--ambiguity", help="min value to segregate", default=0.56, type=float)
+parser.add_argument("--ambiguity", help="min value to segregate", default=0.52, type=float)
 parser.add_argument("--min_SNP_pos", help="min number of HTZ positions", default=15, type=int)
 parser.add_argument("--min_SNP_percentage", help="min percentage of SNP markers", 
                     default=0.85, type=float)
