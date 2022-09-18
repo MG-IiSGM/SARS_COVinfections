@@ -1,0 +1,10 @@
+
+Potential lineages (SNP %)
+BA.1.1 0.957
+BA.2 0.961
+
+Potential co-infections pairs (Total SNPs both)
+BA.1.1 - BA.2 94.0
+
+The best potential co-infection
+BA.1.1 - BA.2
