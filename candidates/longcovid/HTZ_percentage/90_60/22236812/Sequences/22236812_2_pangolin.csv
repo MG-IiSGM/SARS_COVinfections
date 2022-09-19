@@ -1,0 +1,2 @@
+taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note
+22236812_2,B.1.1.529,0.0,,Probable Omicron (Unassigned),0.58,0.24,scorpio call: Alt alleles 19; Ref alleles 8; Amb alleles 6; Oth alleles 0,PUSHER-v1.14,4.1.2,0.3.17,v0.1.10,False,pass,Ambiguous_content:0.02,Usher placements: B.1.1.529(1/1); scorpio found insufficient support to assign a specific lineage

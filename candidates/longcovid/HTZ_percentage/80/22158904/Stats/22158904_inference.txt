@@ -1,0 +1,120 @@
+
+AY.43 harbours 0.357 of markers
+
+B.1.1.7 harbours 0.368 of markers
+
+AY.127 harbours 0.345 of markers
+
+BA.1 harbours 0.783 of markers
+
+B.1.617.2 harbours 0.533 of markers
+
+AY.124 harbours 0.333 of markers
+
+BA.1.1.1 harbours 0.771 of markers
+
+B.1.177 harbours 0.5 of markers
+
+BA.1.17 harbours 0.787 of markers
+
+BA.1.1 harbours 0.787 of markers
+
+AY.122 harbours 0.37 of markers
+
+Potential lineages (SNP %)
+BA.3 0.884
+BA.4 0.882
+BA.2 0.961
+BA.5.1 0.88
+C.39 1.0
+BA.2.36 0.942
+B.1 1.0
+B.1.1 1.0
+
+BA.3 and BA.4 have 1.13 complementarity (lineage1 % + lineage2 %)
+
+BA.3 and BA.2 have 1.13 complementarity (lineage1 % + lineage2 %)
+
+BA.3 and BA.5.1 have 1.13 complementarity (lineage1 % + lineage2 %)
+
+BA.3 and C.39 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.3 and C.39 have 0.14 positions shared in Homo
+
+BA.3 and BA.2.36 have 1.13 complementarity (lineage1 % + lineage2 %)
+
+BA.3 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.3 and B.1 have 0.06 positions shared in Homo
+
+BA.3 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.3 and B.1.1 have 0.14 positions shared in Homo
+
+BA.4 and BA.2 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.4 and BA.5.1 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.4 and C.39 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.4 and C.39 have 0.07 positions shared in Homo
+
+BA.4 and BA.2.36 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.4 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.4 and B.1 have 0.05 positions shared in Homo
+
+BA.4 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.4 and B.1.1 have 0.07 positions shared in Homo
+
+BA.2 and BA.5.1 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.2 and C.39 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2 and C.39 have 0.11 positions shared in Homo
+
+BA.2 and BA.2.36 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.2 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2 and B.1 have 0.04 positions shared in Homo
+
+BA.2 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2 and B.1.1 have 0.11 positions shared in Homo
+
+BA.5.1 and C.39 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.5.1 and C.39 have 0.12 positions shared in Homo
+
+BA.5.1 and BA.2.36 have 1.11 complementarity (lineage1 % + lineage2 %)
+
+BA.5.1 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.5.1 and B.1 have 0.05 positions shared in Homo
+
+BA.5.1 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.5.1 and B.1.1 have 0.12 positions shared in Homo
+
+C.39 and BA.2.36 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+C.39 and B.1 have 0.4 positions shared in Homo
+
+C.39 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2.36 and B.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2.36 and B.1 have 0.04 positions shared in Homo
+
+BA.2.36 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+BA.2.36 and B.1.1 have 0.11 positions shared in Homo
+
+B.1 and B.1.1 have nan complementarity (lineage1 % + lineage2 %)
+
+No co-infection
