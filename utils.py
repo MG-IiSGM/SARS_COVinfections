@@ -30,9 +30,20 @@ def check_argmunets(args, script_dir):
         print("%s: No such file or directory" %ref_genome)
         return 1
     
-    # Check tsv files
-    if not os.path.isfile(args.tsv_file):
-        print("%s: No such file or directory" %args.tsv_file)
+    # Check gff file
+    gff_file = os.path.join(script_dir, "NC_045512.2.gff3")
+    if not os.path.isfile(gff_file):
+        print("%s: No such file or directory" %gff_file)
+        return 1
+    
+    # Check bam files
+    if not os.path.isfile(args.bamfile):
+        print("%s: No such file or directory" %args.bamfile)
+        return 1
+    
+    # Check cov files
+    if not os.path.isfile(args.covfile):
+        print("%s: No such file or directory" %args.covfile)
         return 1
     
     # If all OK
@@ -56,6 +67,50 @@ def parse_fasta(file):
     fasta_ref.close()
 
     return l_ref_sequence, header, ref_sequence
+
+def parse_covfile(file):
+
+    # Dictionary to store coverage
+    cov_d = {}
+    file = open(file, "r")
+    for line in file:
+        l = line.strip().split("\t")
+        cov_d[int(l[1])] = int(l[2])
+    file.close()
+
+    return cov_d
+
+def discard_SNP_in_DEL(df):
+
+    # list with positions to remove
+    pos_to_remove = []
+
+    # previous postion features
+    prev_pos = 0
+    indel_len = 0
+    indel_DP = 0
+
+    for index, row in df.iterrows():
+        pos = row["POS"]
+
+        # check if DEL
+        if len(row["ALT"]) > 1 and row["ALT"][0] == "-":
+            prev_pos = pos
+            indel_len = len(row["ALT"])
+            indel_DP = row["ALT_DP"]
+        
+        # If not Del
+        elif len(row["ALT"]) == 1:
+            # if pos in DEL remove
+            if indel_len > 0 and \
+                pos in list(range(prev_pos, prev_pos + indel_len)) and \
+                    indel_DP > row["ALT_DP"]:
+                pos_to_remove.append(index)
+    
+    # remove pos in INDEL
+    df.drop(index = pos_to_remove, inplace=True)
+
+    return df
 
 # convert positions to gen
 def pos_to_gen(pos):
@@ -312,71 +367,71 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
     else:
         to_write += name_tsv + str(total_SNPs) + "," + str(0) + "," + str(0) + ",,,,,,\n"
 
-    # variant stats
-    for variant in mutations:
+    # # variant stats
+    # for variant in mutations:
 
-        df_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == variant]
-        df_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
+    #     df_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == variant]
+    #     df_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
 
-        # total no. of SNPs
-        total_variant_SNP = df_variant_hom.shape[0] + df_variant_htz.shape[0]
+    #     # total no. of SNPs
+    #     total_variant_SNP = df_variant_hom.shape[0] + df_variant_htz.shape[0]
 
-        if df_variant_htz.shape[0]:
-            l_variant_htz = df_variant_htz["ALT_FREQ"]
+    #     if df_variant_htz.shape[0]:
+    #         l_variant_htz = df_variant_htz["ALT_FREQ"]
 
-            mean_ALT_HTZ_prop = round(np.mean(l_variant_htz), 3)
-            std_ALT_HTZ_prop = round(np.std(l_variant_htz), 3)
-            median_ALT_HTZ_prop = round(np.median(l_variant_htz), 3)
-            var_ALT_HTZ_prop = round(np.var(l_variant_htz), 3)
-            min_ALT_HTZ_prop = np.min(l_variant_htz)
-            max_ALT_HTZ_prop = np.max(l_variant_htz)
+    #         mean_ALT_HTZ_prop = round(np.mean(l_variant_htz), 3)
+    #         std_ALT_HTZ_prop = round(np.std(l_variant_htz), 3)
+    #         median_ALT_HTZ_prop = round(np.median(l_variant_htz), 3)
+    #         var_ALT_HTZ_prop = round(np.var(l_variant_htz), 3)
+    #         min_ALT_HTZ_prop = np.min(l_variant_htz)
+    #         max_ALT_HTZ_prop = np.max(l_variant_htz)
 
-            to_write += variant + "," + str(total_variant_SNP) + "," + str(df_variant_hom.shape[0]) + \
-                "," + str(df_variant_htz.shape[0]) + "," + \
-                str(mean_ALT_HTZ_prop) + \
-                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
-                        "," + str(max_ALT_HTZ_prop) + "\n"
+    #         to_write += variant + "," + str(total_variant_SNP) + "," + str(df_variant_hom.shape[0]) + \
+    #             "," + str(df_variant_htz.shape[0]) + "," + \
+    #             str(mean_ALT_HTZ_prop) + \
+    #             "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+    #                 "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
+    #                     "," + str(max_ALT_HTZ_prop) + "\n"
             
-            name_stats_file = os.path.join(dir_name_tsv_stats, variant)
-            # plot HTZ pos
-            plot_proportions(df_variant_htz, name_stats_file, variant=True)
+    #         name_stats_file = os.path.join(dir_name_tsv_stats, variant)
+    #         # plot HTZ pos
+    #         plot_proportions(df_variant_htz, name_stats_file, variant=True)
 
-        else:
-            to_write += variant + "," + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
+    #     else:
+    #         to_write += variant + "," + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
     
-    # Not lineage
-    df_non_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == ""]
-    df_non_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
+    # # Not lineage
+    # df_non_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == ""]
+    # df_non_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
 
-    # total no. of SNPs
-    total_non_variant_SNP = df_non_variant_hom.shape[0] + df_non_variant_htz.shape[0]
+    # # total no. of SNPs
+    # total_non_variant_SNP = df_non_variant_hom.shape[0] + df_non_variant_htz.shape[0]
 
-    if df_non_variant_htz.shape[0]:
+    # if df_non_variant_htz.shape[0]:
 
-        NL_upper_HTZ_prop_l = df_non_variant_htz[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
+    #     NL_upper_HTZ_prop_l = df_non_variant_htz[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
         
-        # statistics
-        mean_ALT_HTZ_prop = round(np.mean(NL_upper_HTZ_prop_l), 3)
-        std_ALT_HTZ_prop = round(np.std(NL_upper_HTZ_prop_l), 3)
-        median_ALT_HTZ_prop = round(np.median(NL_upper_HTZ_prop_l), 3)
-        var_ALT_HTZ_prop = round(np.var(NL_upper_HTZ_prop_l), 3)
-        min_ALT_HTZ_prop = np.min(NL_upper_HTZ_prop_l)
-        max_ALT_HTZ_prop = np.max(NL_upper_HTZ_prop_l)
+    #     # statistics
+    #     mean_ALT_HTZ_prop = round(np.mean(NL_upper_HTZ_prop_l), 3)
+    #     std_ALT_HTZ_prop = round(np.std(NL_upper_HTZ_prop_l), 3)
+    #     median_ALT_HTZ_prop = round(np.median(NL_upper_HTZ_prop_l), 3)
+    #     var_ALT_HTZ_prop = round(np.var(NL_upper_HTZ_prop_l), 3)
+    #     min_ALT_HTZ_prop = np.min(NL_upper_HTZ_prop_l)
+    #     max_ALT_HTZ_prop = np.max(NL_upper_HTZ_prop_l)
 
-        to_write += "Non_variant" + "," + str(total_non_variant_SNP) + "," + str(df_non_variant_hom.shape[0]) + \
-            "," + str(df_non_variant_htz.shape[0]) + "," + \
-                str(mean_ALT_HTZ_prop) + \
-                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
-                        "," + str(max_ALT_HTZ_prop) + "\n"
+    #     to_write += "Non_variant" + "," + str(total_non_variant_SNP) + "," + str(df_non_variant_hom.shape[0]) + \
+    #         "," + str(df_non_variant_htz.shape[0]) + "," + \
+    #             str(mean_ALT_HTZ_prop) + \
+    #             "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
+    #                 "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
+    #                     "," + str(max_ALT_HTZ_prop) + "\n"
 
-        name_stats_file = os.path.join(dir_name_tsv_stats, "Non_variant")
-        # plot HTZ pos
-        plot_proportions(df_non_variant_htz, name_stats_file)
+    #     name_stats_file = os.path.join(dir_name_tsv_stats, "Non_variant")
+    #     # plot HTZ pos
+    #     plot_proportions(df_non_variant_htz, name_stats_file)
     
-    else:
-        to_write += "Non_variant" + str(total_non_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
+    # else:
+    #     to_write += "Non_variant" + str(total_non_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
 
     stats_file.write(to_write)
     stats_file.close()
@@ -545,29 +600,36 @@ def parse_mut(mut_dir, args):
     
     return d_mut
 
-def indetify_variants(df, mutations, args):
+def indetify_variants(df, mutations):
 
     # List to store lineages
     lineage = []
 
-    for variant in mutations:
-        #variant: BA.2
+     # Label SNVs
+    for i in range(len(df.POS)):
+        pos = list(df.POS)[i]
 
-        # variant mutations
-        mut_dict = mutations[variant]
+        for variant in mutations:
+            #variant: BA.2
 
-        # Label SNVs
-        for i in range(len(df.POS)):
-            pos = list(df.POS)[i]
+            # variant mutations
+            mut_dict = mutations[variant]
 
-            if not pos in list(mut_dict.keys()) and len(lineage) < df.shape[0]:
-                lineage.append([])
+            if not pos in list(mut_dict.keys()):
+                if len(lineage) < df.shape[0]:
+                    lineage.append([])
+            
+            else:
+                pos_dict = mut_dict[pos]
+                ref = pos_dict[1][0]
+                alt = pos_dict[1][-1]
 
-            elif pos in list(mut_dict.keys()) and len(lineage) < df.shape[0]:
-                lineage.append([variant])
+                if ref == list(df.REF)[i] and alt == list(df.ALT)[i]:
+                    if len(lineage) < df.shape[0]:
+                        lineage.append([variant])
 
-            elif pos in list(mut_dict.keys()):
-                lineage[i] += [variant]
+                    else:
+                        lineage[i] += [variant]
     
     # If not lineages
     if len(lineage) == 0:

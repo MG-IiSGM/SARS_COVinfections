@@ -1,9 +1,0 @@
-
-BA.2 harbours 0.824 of markers
-
-BA.1 harbours 0.826 of markers
-
-Potential lineages (SNP %)
-AY.43 1.0
-
-Potential co-infection between same lineage

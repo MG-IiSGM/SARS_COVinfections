@@ -1,2 +1,0 @@
-taxon,lineage,conflict,ambiguity_score,scorpio_call,scorpio_support,scorpio_conflict,scorpio_notes,version,pangolin_version,scorpio_version,constellation_version,is_designated,qc_status,qc_notes,note
-21322322_1,B.1,0.375,,,,,,PUSHER-v1.14,4.1.2,0.3.17,v0.1.10,False,pass,Ambiguous_content:0.02,Usher placements: B.1(5/8) B.1.633(1/8) B.1.640(1/8) XC(1/8)
