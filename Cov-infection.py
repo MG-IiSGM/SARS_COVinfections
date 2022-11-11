@@ -1,3 +1,4 @@
+# imports
 import argparse, os, utils, mixtas, sys
 
 # parse arguments (-B)
@@ -51,6 +52,7 @@ def main():
         # get tsv from bam file
         tsv_file = mixtas.bam2tsv(args.bamfile, args, script_dir, name_bam)
         name_tsv = os.path.basename(tsv_file).rstrip(".tsv")
+        dir_name_tsv = os.path.join(args.out_dir, name_tsv)
 
         # Parse mutations.
         mut_dir = os.path.join(script_dir, "mutations")
@@ -59,18 +61,18 @@ def main():
         # parse coverage file
         cov_d = utils.parse_covfile(args.covfile)
 
-    # main function
+    # parse variant calling file
     df = mixtas.get_lineage(args, tsv_file, name_tsv, mutations)
 
-    # get HTZ/HOM positions
-    HTZ_SNVs, HOM_SNVs = mixtas.get_HTZ(df, args, name_tsv, mutations)
-
     # get alingment
-    mixtas.get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations, cov_d)
+    mixtas.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
 
     # include previous or post episodes
     if args.episode:
         mixtas.compare_episode(args, name_tsv, script_dir)
+
+    # Get stats
+    utils.quality_control(df, args, mutations, name_tsv, dir_name_tsv)
     
     # If all OK
     exit(0)

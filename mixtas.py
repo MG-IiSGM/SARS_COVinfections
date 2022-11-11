@@ -82,28 +82,7 @@ def get_lineage(args, tsv_file, name_tsv, mutations):
     
     return df
 
-def get_HTZ(df, args, name_tsv, mutations):
-
-    # directories
-    dir_name_tsv = os.path.join(args.out_dir, name_tsv)
-
-    # HTZ SNVs
-    # SNPs with a proportion between 0.15 - 0.85
-    HTZ_SNVs = df[(df.ALT_FREQ < args.min_HOM) & (df.ALT_FREQ > (1 - args.min_HOM))]
-
-    # HOM SNVs
-    # SNPs with a proportion higher than 0.85
-    HOM_SNVs = df[(df.ALT_FREQ > args.min_HOM) | (df.ALT_FREQ < (1 - args.min_HOM))]
-
-    # HTZ stats
-    name_stats_file = utils.get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
-
-    # Infer if co-infection
-    # utils.infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv)
-
-    return HTZ_SNVs, HOM_SNVs
-
-def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations, cov_d):
+def get_alingment(args, script_dir, name_tsv, df, mutations, cov_d):
 
     # directories
     dir_name_tsv = os.path.join(args.out_dir, name_tsv)
@@ -118,6 +97,14 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations,
 
     base_dict = {}
     prop_dict = {}
+
+    # umbiguous dictionary IUPAC
+    iupac =     {"AG": "R", "GA":"R",
+                "CT":"Y", "TC":"Y",
+                "GC":"S", "CG":"S",
+                "AT":"W", "TA":"W",
+                "GT":"K", "TG":"K",
+                "AC":"M", "CA":"M"}
     
     if df.shape[0]:
         for _, row in df.iterrows():
@@ -159,12 +146,16 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations,
                     if max_prop <= args.ambiguity:
 
                         # min_seq1
-                        genomes[0][coordinate] = "X" + " (" + str(min_prop) + ")"
-                        sequences[0][coordinate] = "X"
+                        genomes[0][coordinate] = iupac[max_base + min_base] + " (" + str(min_prop) + ")"
+                        sequences[0][coordinate] = iupac[max_base + min_base]
+                        # genomes[0][coordinate] = "X" + " (" + str(min_prop) + ")"
+                        # sequences[0][coordinate] = "X"
 
                         #max_seq2
-                        genomes[2][coordinate] = "X" + " (" + str(max_prop) + ")"
-                        sequences[2][coordinate] = "X"
+                        genomes[2][coordinate] = iupac[max_base + min_base] + " (" + str(max_prop) + ")"
+                        sequences[2][coordinate] = iupac[max_base + min_base]
+                        # genomes[0][coordinate] = "X" + " (" + str(max_prop) + ")"
+                        # sequences[0][coordinate] = "X"
 
                         # seq1_seq2
                         genomes[1][coordinate] = max_base + "/" + min_base
@@ -207,6 +198,16 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations,
             elif row["POS"] in base_dict:
                 base_dict[row["POS"]].append(row["ALT"])
                 prop_dict[row["POS"]].append(row["ALT_FREQ"])
+        
+        # Check coverage
+        for n in range(len(l_ref_sequence)):
+            pos = n + 1
+            if cov_d[pos] < args.min_DP or cov_d[pos] == 0:
+                for i in range(len(genomes)):
+                    genome = genomes[i]
+                    sequence = sequences[i]
+                    genome[n] = "N"
+                    sequence[n] = "N"
 
     # Store sequences to fasta files
     # out sequences dir
@@ -218,6 +219,9 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations,
     to_write = ">" + name_tsv + "_1\n" + "".join(sequences[0]) + "\n"
     sample1.write(to_write)
     sample1.close()
+
+    # get tsv and cov for compare
+    utils.fasta2compare(script_dir, args, out_seq_dir, name_tsv + "_1")
 
     if args.pangolin:
         subprocess.run(["pangolin", out_seq_dir + "/" + name_tsv + "_1.fasta",
@@ -231,15 +235,42 @@ def get_alingment(args, script_dir, name_tsv, HTZ_SNVs, HOM_SNVs, df, mutations,
     sample2.write(to_write)
     sample2.close()
 
+    # get tsv and cov for compare
+    utils.fasta2compare(script_dir, args, out_seq_dir, name_tsv + "_2")
+
     if args.pangolin:
         subprocess.run(["pangolin", out_seq_dir + "/" + name_tsv + "_2.fasta",
                              "--outdir", out_seq_dir,
                             "--outfile", name_tsv + "_2_pangolin.csv",
                             "--max-ambig", "0.6"])
+    
+    # Align samples with mafft
+    try:
+        subprocess.call("cat %s > %s" %(ref_genome, os.path.join(out_seq_dir, "all.fasta")),
+                        shell=True)
+        subprocess.call("cat %s/*.fasta >> %s/all.fasta" %(out_seq_dir, out_seq_dir),
+                        shell=True)
+        subprocess.call("mafft --quiet --maxiterate 100 %s  > %s" %(os.path.join(out_seq_dir, "all.fasta"),
+                        os.path.join(out_seq_dir, "all.aln")),
+                        shell=True)
+        subprocess.call("rm %s" %(os.path.join(out_seq_dir, "all.fasta")),
+                        shell=True)
 
-    aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
+    except:
+        print("MAFFT aligner is not installed")
+        exit(1)
 
-def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations):
+    # snipit
+    if args.snipit:
+        subprocess.run(["snipit", os.path.join(out_seq_dir, "all.aln"), "-f", "pdf",
+                            "--flip-vertical", "-o",
+                            os.path.join(out_seq_dir, name_tsv)])
+        subprocess.call("rm %s" %(os.path.join(out_seq_dir, "all.aln")),
+                        shell=True)
+
+    aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations, cov_d)
+
+def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations, cov_d):
 
     # out_aln_dir
     out_aln_dir = dir_name_tsv + "/ALN"
@@ -251,8 +282,9 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
         index=["Reference", name_tsv + "_1", 
         name_tsv + "_1+2", name_tsv + "_2"])
     df_aln_t = df_aln.T
-    df_aln_SNV = df_aln_t[(df_aln_t["Reference"] != df_aln_t[name_tsv + "_1"]) | 
-                    (df_aln_t["Reference"] != df_aln_t[name_tsv + "_2"])].T
+    df_aln_SNV = df_aln_t[(df_aln_t[name_tsv + "_1"] != "N") & 
+                    ((df_aln_t["Reference"] != df_aln_t[name_tsv + "_1"]) | 
+                    (df_aln_t["Reference"] != df_aln_t[name_tsv + "_2"]))].T
     
     # Set position depth
     position_dp = []
@@ -260,7 +292,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
 
     for column in df_aln_SNV.columns:
         position_l.append(column)
-        position_dp.append(str(df[df["POS"] == column].TOTAL_DP.values[0]))
+        position_dp.append(str(cov_d[column + 1]))
     
     # Concat to df_aln_SNV
     DP_df = pd.DataFrame()
@@ -281,8 +313,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations)
     
     # Select only HTZ positions in Alingment
     df_concat_t = df_concat.T
-    df_concat_HTZ = df_concat_t[(df_concat_t[name_tsv + "_1"] != df_concat_t[name_tsv + "_2"]) &
-                    (df_concat_t[name_tsv + "_1"] != "X") & (df_concat_t[name_tsv + "_2"] != "X")]
+    df_concat_HTZ = df_concat_t[(df_concat_t[name_tsv + "_1"] != df_concat_t[name_tsv + "_2"])]
     df_concat_HTZ = df_concat_HTZ.T
 
     # Store df

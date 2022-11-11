@@ -15,6 +15,23 @@ def check_create_dir(path):
     else:
         os.mkdir(path)
 
+# check fasta
+def check_arg(args, script_dir):
+
+    # Check reference genome
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    if not os.path.isfile(ref_genome):
+        print("%s: No such file or directory" %ref_genome)
+        return 1
+    
+    # Check fasta files
+    if not os.path.isfile(args.fasta_file):
+        print("%s: No such file or directory" %args.fasta_file)
+        return 1
+    
+    # If all OK
+    return 0
+
 # check initial arguments
 def check_argmunets(args, script_dir):
 
@@ -84,6 +101,7 @@ def discard_SNP_in_DEL(df):
 
     # list with positions to remove
     pos_to_remove = []
+    indel_pos = {}
 
     # previous postion features
     prev_pos = 0
@@ -98,14 +116,19 @@ def discard_SNP_in_DEL(df):
             prev_pos = pos
             indel_len = len(row["ALT"])
             indel_DP = row["ALT_DP"]
+            for p in range(prev_pos, prev_pos + indel_len):
+                if p in indel_pos:
+                    if indel_pos[p] < indel_DP:
+                        indel_pos[p] = indel_DP
+                else:
+                    indel_pos[p] = indel_DP
         
         # If not Del
         elif len(row["ALT"]) == 1:
             # if pos in DEL remove
-            if indel_len > 0 and \
-                pos in list(range(prev_pos, prev_pos + indel_len)) and \
-                    indel_DP > row["ALT_DP"]:
-                pos_to_remove.append(index)
+            if pos in indel_pos:
+                if indel_pos[pos] > row["ALT_DP"]:
+                    pos_to_remove.append(index)
     
     # remove pos in INDEL
     df.drop(index = pos_to_remove, inplace=True)
@@ -188,137 +211,10 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     plt.axhline(y=high_mean + high_std, color='black', linestyle='--')
     plt.axhline(y=high_mean, color='black', linestyle='-')
     plt.axhline(y=high_mean - high_std, color='black', linestyle='--')
-    plt.savefig("%s.png" %(name_stats_file))
-
-def infer_infection(args, name_stats_file, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
-    
-    # out_dir_stats
-    dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
-    check_create_dir(dir_name_tsv_stats)
-
-    # out file
-    name_file = os.path.join(dir_name_tsv_stats, name_tsv)
-    out_file = open("%s_inference.txt" %(name_file), "w")
-
-    # Read stats csv
-    stats_df = pd.read_csv(name_stats_file, sep=",", index_col="Lineage").T
-
-    potential_lineages = []
-
-    # CHECK if sample ontains > 90% lineage markers (total)
-    l_marker_perc = []
-    for lineage in stats_df.columns[1:]:
-
-        if lineage in mutations:
-            n_SNPs = len(mutations[lineage])
-
-            markers_percentage = round(stats_df[lineage].values[0] / n_SNPs, 3)
-            if markers_percentage > args.min_SNP_percentage:
-                l_marker_perc.append(markers_percentage)
-                potential_lineages.append(lineage)
-            else:
-                to_write = "\n%s harbours %s" %(lineage, str(markers_percentage)) + " of markers\n"
-                out_file.write(to_write)
-
-    # CHECK if % Non_variant > 0.6
-    if not len(potential_lineages):
-
-        if stats_df["Non_variant"].values[3] > 0.6 and \
-                    stats_df["Non_variant"].values[2] > args.min_SNP_pos:
-            out_file.write("\nPotential co-infection between same lineage\n")
-        else:
-            out_file.write("\nNo co-infection\n")
-        out_file.close()
-        return 
-    else:
-        out_file.write("\nPotential lineages (SNP %)\n")
-        for i in range(len(potential_lineages)):
-            lineage = potential_lineages[i]
-            out_file.write(lineage)
-            out_file.write(" ")
-            out_file.write(str(l_marker_perc[i]))
-            out_file.write("\n")
-    
-    potential_coinfection = []
-    for i in range(len(potential_lineages)):
-        lineage1 = potential_lineages[i]
-
-        for e in range(len(potential_lineages)):
-            lineage2 = potential_lineages[e]
-            complementary = False
-            homo = False
-
-            if e > i:
-                
-                # Check if % complementarity
-                # If sum proportion lineage 1 + proportion
-                # lineage 2 is close to 1
-                sum_percentages = stats_df[lineage1].values[3] + \
-                    stats_df[lineage2].values[3]
-                if sum_percentages > 0.94 and sum_percentages < 1.03:
-                    complementary = True
-                else:
-                    to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(sum_percentages, 2))) + \
-                    " complementarity (lineage1 %" + " + lineage2 %)\n"
-                    out_file.write(to_write)
-                
-                # Check if 90 % in Homozigosys:
-                # Share lineage SNPs are in Homozigosys
-                # List of non empty lineages in HOM_SNVs dataframe
-                share_lineages = [elem for elem in HOM_SNVs["LINEAGE"].to_list() if len(elem)]
-                n_pos = 0
-                n_total_pos = 0
-                for index in range(len(share_lineages)):
-                    list_lineages = share_lineages[index]
-
-                    if lineage1 in list_lineages:
-                        n_total_pos += 1
-                    if lineage1 in list_lineages and lineage2 in list_lineages:
-                        n_pos += 1
-
-                hom_percentage = n_pos / n_total_pos
-                if hom_percentage > args.min_SNP_percentage:
-                    homo = True
-                else:
-                    to_write = "\n%s and %s have %s" %(lineage1, lineage2, str(round(hom_percentage, 2))) + \
-                    " positions shared in Homo\n"
-                    out_file.write(to_write)
-
-                if complementary and homo:
-                    potential_coinfection.append([lineage1, lineage2])
-    
-    # CHECK if % Non_variant > 0.6
-    if not len(potential_coinfection):
-
-        if stats_df["Non_variant"].values[3] > 0.6 and \
-                    stats_df["Non_variant"].values[2] > args.min_SNP_pos:
-            out_file.write("\nPotential co-infection between same lineage\n")
-        else:
-            out_file.write("\nNo co-infection\n")
-        out_file.close()
-        return 
-    else:
-        sum_total_SNP = []
-        out_file.write("\nPotential co-infections pairs (Total SNPs both)\n")
-        for pair in potential_coinfection:
-            l1 = pair[0]
-            l2 = pair[1]
-            sum_total_SNP.append(stats_df[l1].values[0] + stats_df[l2].values[0])
-            to_write = " - ".join(pair) + " " + str(stats_df[l1].values[0] + stats_df[l2].values[0])
-            out_file.write(to_write)
-            out_file.write("\n")
-
-        
-        out_file.write("\nThe best potential co-infection\n")
-        best_indexes = np.argwhere(sum_total_SNP == np.amax(sum_total_SNP)).flatten().tolist()
-        for index in best_indexes:
-            out_file.write(" - ".join(potential_coinfection[index]))
-            out_file.write("\n")
-    
-    out_file.close()    
+    plt.savefig("%s.png" %(name_stats_file)) 
 
 
-def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
+def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
 
     # out_dir_stats
     dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
@@ -328,115 +224,103 @@ def get_HTZ_stats(df, HTZ_SNVs, HOM_SNVs, mutations, name_tsv, dir_name_tsv):
     name_stats_file = os.path.join(dir_name_tsv_stats, name_tsv)
     name_stats_file_ = name_stats_file[:]
     stats_file = open("%s_stats.csv" %(name_stats_file), "w")
-    # header
-    to_write = "Lineage,total_SNP,total_HOM,total_HTZ,mean,std,median,var,min,max\n"
 
-    # explode
-    HTZ_SNVs_explode = HTZ_SNVs.explode("LINEAGE")
-    HOM_SNVs_explode = HOM_SNVs.explode("LINEAGE")
+    ##### HTZ PROPORTION
+    min_std_low = 0.05
+    max_std_low = 0.08
+    max_prop = 0.75
+    points = 0
 
-    # total no. SNPs
-    total_SNPs = df.shape[0]
+    # fields
+    fields = ["Muestra", "total_HTZ", "mean_htz_proportion",
+                "std_htz_proportion", "SNPs_between_std"]
+    row = [name_tsv]
 
-    # total no. htz SNPs
-    total_htz = HTZ_SNVs.shape[0]
-    
-    # get stats HTZ proportion
-    if total_htz:
+    # get htz snps
+    HTZ_SNVs = df[(df.ALT_FREQ <= args.min_HOM) & (df.ALT_FREQ >= (1 - args.min_HOM))]
+    # number htz SNPs
+    n_HTZ_SNPs = HTZ_SNVs.shape[0]
 
+    if n_HTZ_SNPs:
+
+        # select upper proportion htz
         upper_HTZ_prop_l = HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
-
-        # statistics
+        # Statistics
         mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
         std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
-        median_ALT_HTZ_prop = round(np.median(upper_HTZ_prop_l), 3)
-        var_ALT_HTZ_prop = round(np.var(upper_HTZ_prop_l), 3)
-        min_ALT_HTZ_prop = np.min(upper_HTZ_prop_l)
-        max_ALT_HTZ_prop = np.max(upper_HTZ_prop_l)
+        SNPs_in_mean_limits = round(len([ p for p in upper_HTZ_prop_l 
+                                                    if p <= mean_ALT_HTZ_prop + std_ALT_HTZ_prop and
+                                                    p >= mean_ALT_HTZ_prop - std_ALT_HTZ_prop]) / len(upper_HTZ_prop_l),
+                                    2)
 
-        to_write += name_tsv + "," + str(total_SNPs) + "," + str(HOM_SNVs.shape[0]) + \
-                "," + str(total_htz) + "," + \
-                str(mean_ALT_HTZ_prop) + \
-                "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-                    "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
-                        "," + str(max_ALT_HTZ_prop) + "\n"
+        row += [str(n_HTZ_SNPs), str(mean_ALT_HTZ_prop), str(std_ALT_HTZ_prop), str(SNPs_in_mean_limits)]
 
-        # plot HTZ pos
-        plot_proportions(HTZ_SNVs, name_stats_file)
-
-    else:
-        to_write += name_tsv + str(total_SNPs) + "," + str(0) + "," + str(0) + ",,,,,,\n"
-
-    # # variant stats
-    # for variant in mutations:
-
-    #     df_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == variant]
-    #     df_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == variant]
-
-    #     # total no. of SNPs
-    #     total_variant_SNP = df_variant_hom.shape[0] + df_variant_htz.shape[0]
-
-    #     if df_variant_htz.shape[0]:
-    #         l_variant_htz = df_variant_htz["ALT_FREQ"]
-
-    #         mean_ALT_HTZ_prop = round(np.mean(l_variant_htz), 3)
-    #         std_ALT_HTZ_prop = round(np.std(l_variant_htz), 3)
-    #         median_ALT_HTZ_prop = round(np.median(l_variant_htz), 3)
-    #         var_ALT_HTZ_prop = round(np.var(l_variant_htz), 3)
-    #         min_ALT_HTZ_prop = np.min(l_variant_htz)
-    #         max_ALT_HTZ_prop = np.max(l_variant_htz)
-
-    #         to_write += variant + "," + str(total_variant_SNP) + "," + str(df_variant_hom.shape[0]) + \
-    #             "," + str(df_variant_htz.shape[0]) + "," + \
-    #             str(mean_ALT_HTZ_prop) + \
-    #             "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-    #                 "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
-    #                     "," + str(max_ALT_HTZ_prop) + "\n"
-            
-    #         name_stats_file = os.path.join(dir_name_tsv_stats, variant)
-    #         # plot HTZ pos
-    #         plot_proportions(df_variant_htz, name_stats_file, variant=True)
-
-    #     else:
-    #         to_write += variant + "," + str(total_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
-    
-    # # Not lineage
-    # df_non_variant_hom = HOM_SNVs_explode[HOM_SNVs_explode["LINEAGE"] == ""]
-    # df_non_variant_htz = HTZ_SNVs_explode[HTZ_SNVs_explode["LINEAGE"] == ""]
-
-    # # total no. of SNPs
-    # total_non_variant_SNP = df_non_variant_hom.shape[0] + df_non_variant_htz.shape[0]
-
-    # if df_non_variant_htz.shape[0]:
-
-    #     NL_upper_HTZ_prop_l = df_non_variant_htz[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
+        if mean_ALT_HTZ_prop <= 0.6 and std_ALT_HTZ_prop <= min_std_low:
+            points += 1
         
-    #     # statistics
-    #     mean_ALT_HTZ_prop = round(np.mean(NL_upper_HTZ_prop_l), 3)
-    #     std_ALT_HTZ_prop = round(np.std(NL_upper_HTZ_prop_l), 3)
-    #     median_ALT_HTZ_prop = round(np.median(NL_upper_HTZ_prop_l), 3)
-    #     var_ALT_HTZ_prop = round(np.var(NL_upper_HTZ_prop_l), 3)
-    #     min_ALT_HTZ_prop = np.min(NL_upper_HTZ_prop_l)
-    #     max_ALT_HTZ_prop = np.max(NL_upper_HTZ_prop_l)
-
-    #     to_write += "Non_variant" + "," + str(total_non_variant_SNP) + "," + str(df_non_variant_hom.shape[0]) + \
-    #         "," + str(df_non_variant_htz.shape[0]) + "," + \
-    #             str(mean_ALT_HTZ_prop) + \
-    #             "," + str(std_ALT_HTZ_prop) + "," + str(median_ALT_HTZ_prop) + \
-    #                 "," + str(var_ALT_HTZ_prop) + "," + str(min_ALT_HTZ_prop) + \
-    #                     "," + str(max_ALT_HTZ_prop) + "\n"
-
-    #     name_stats_file = os.path.join(dir_name_tsv_stats, "Non_variant")
-    #     # plot HTZ pos
-    #     plot_proportions(df_non_variant_htz, name_stats_file)
+        elif mean_ALT_HTZ_prop <= 0.8 and std_ALT_HTZ_prop <= max_std_low:
+            points += 1
+        
+        if SNPs_in_mean_limits >= max_prop:
+            points += 1
     
-    # else:
-    #     to_write += "Non_variant" + str(total_non_variant_SNP) + "," + str(0) + "," + str(0) + ",,,,,,\n"
+    else:
+        row += ["0", "0", "0", "0"]
 
+    ##### PANGOLIN
+    if args.pangolin:
+
+        # pango_fields
+        fields += ["Min_pangolin", "Min_conflict", "Max_pangolin", "Max_conflict"]
+
+        # parse pangolin files
+        out_seq_dir = os.path.join(dir_name_tsv, "Sequences")
+        min_file = os.path.join(out_seq_dir, name_tsv + "_1_pangolin.csv")
+        min_df = pd.read_csv(min_file, sep=",")
+        row += [str(min_df["lineage"].values[0]), str(min_df["conflict"].values[0])]
+
+        max_file = os.path.join(out_seq_dir, name_tsv + "_2_pangolin.csv")
+        max_df = pd.read_csv(max_file, sep=",")
+        row += [str(max_df["lineage"].values[0]), str(max_df["conflict"].values[0])]
+
+        if min_df["conflict"].values[0] == 0 and max_df["conflict"].values[0] == 0:
+            points += 1
+    
+    ##### HTZ DISTRIBUTION
+    # number htz not related to lineage
+    not_lineage_HTZ_SNVs = HTZ_SNVs[(HTZ_SNVs["LINEAGE"] == "") & 
+                            ((HTZ_SNVs["REF_FREQ"] > args.ambiguity) |
+                                ((HTZ_SNVs["ALT_FREQ"] > args.ambiguity)))]
+
+    max_index = not_lineage_HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].idxmax(axis=1).to_list()
+    
+    fields += ["N_SNPs_min", "N_SNPs_max"]
+
+    if len(max_index):
+
+        row += [str(round(max_index.count("REF_FREQ") / len(max_index), 2)),
+                str(round(max_index.count("ALT_FREQ") / len(max_index), 2))]
+        
+        if len(max_index) > 5 and \
+            round(max_index.count("REF_FREQ") / len(max_index), 2) > max_prop:
+            points -= 3 
+
+        elif round(max_index.count("REF_FREQ") / len(max_index), 2) <= max_prop and \
+                round(max_index.count("ALT_FREQ") / len(max_index), 2) <= max_prop:
+            points += 1
+    else:
+        row += ["0", "0"]
+    
+    fields += ["Points"]
+    row += [str(points)]
+
+    #### WRITE FILE
+    to_write = ",".join(fields) + "\n" + ",".join(row) + "\n"
     stats_file.write(to_write)
     stats_file.close()
 
-    return "%s_stats.csv" %(name_stats_file_)
+    # plot HTZ pos
+    plot_proportions(HTZ_SNVs, name_stats_file)
 
 def include_lineages(args, df_aln_SNV, mutations):
     l_SNPs = {}
@@ -498,7 +382,7 @@ def mini_compare(aln_name):
     # COMAPARE ROWS
     samples = list(df_episodes.columns[1:])
     row = len(samples)
-    matrix = np.zeros((row, row - 1))
+    matrix = np.zeros((row, row))
 
     for i in range(len(samples)):
         column = samples[i]
@@ -506,19 +390,15 @@ def mini_compare(aln_name):
         for e in range(len(samples)):
             c = samples[e]
 
-            # Fill just one part of the matrix
-            if e > i:
-                matrix[e, i] = sum(
+            # Fill the matrix
+
+            matrix[e, i] = sum(
                 (df_episodes[column] != df_episodes[c]) & 
             ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
-             (df_episodes[c] != "N") & (df_episodes[c] != "-") &
-             (df_episodes[column] != "X") & (df_episodes[c] != "X")
+             (df_episodes[c] != "N") & (df_episodes[c] != "-")
                 )
 
-                if e < row - 1:
-                    matrix[i, e] = "nan"
-
-    compare_df = pd.DataFrame(matrix, columns=samples[:-1], index=samples)    
+    compare_df = pd.DataFrame(matrix, columns=samples, index=samples)    
     compare_df.to_csv(os.path.join(aln_dir, "episode_compare.csv"), sep=",")
 
 def color_df(row):
@@ -605,7 +485,7 @@ def indetify_variants(df, mutations):
     # List to store lineages
     lineage = []
 
-     # Label SNVs
+    # Label SNVs
     for i in range(len(df.POS)):
         pos = list(df.POS)[i]
 
@@ -636,3 +516,86 @@ def indetify_variants(df, mutations):
         lineage = [[]] * len(df.POS)
 
     return lineage
+
+def fasta2compare(script_dir, args, out_seq_dir, name_fasta):
+
+    # ref genome
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+
+    # Get tsv
+    df = get_SNPs_fasta(ref_genome, out_seq_dir, name_fasta)
+    df.to_csv(os.path.join(out_seq_dir, name_fasta) + ".tsv", sep="\t", index=False)
+
+    # get cov
+    get_cov_fasta(out_seq_dir, name_fasta)
+
+def get_cov_fasta(out_seq_dir, name_fasta):
+
+    # input fasta
+    fasta_file = os.path.join(out_seq_dir, name_fasta) +  ".fasta"
+    l_sample, sample_header, sample_sequence = parse_fasta(fasta_file)
+
+    cov_file = open(os.path.join(out_seq_dir, name_fasta) + ".cov", "w")
+    for e in range(len(l_sample)):
+        pos = l_sample[e]
+        
+        if pos == "N" or pos == "X":
+            to_write = "NC_045512.2\t%s\t0\n" %(str(e + 1))
+        else:
+            to_write = "NC_045512.2\t%s\t600\n" %(str(e + 1))
+        cov_file.write(to_write)
+    cov_file.close()
+
+def get_SNPs_fasta(ref_genome, out_seq_dir, name_fasta):
+
+    # parse ref genome
+    l_ref_sequence, ref_header, ref_sequence = parse_fasta(ref_genome)
+
+    # input fasta
+    fasta_file = os.path.join(out_seq_dir, name_fasta) + ".fasta"
+    l_sample, sample_header, sample_sequence = parse_fasta(fasta_file)
+
+    # get SNPs
+    pos = []
+    ref = []
+    alt = []
+    for e in range(len(l_ref_sequence)):
+        
+        if l_sample[e] != "N" and l_ref_sequence[e] != l_sample[e] :
+            
+            pos.append(e + 1)
+            ref.append(l_ref_sequence[e])
+
+            # If ambiguous position set N
+            if l_sample[e] == "X":
+                alt.append("N")
+            else:
+                alt.append(l_sample[e])
+    
+    # Define DataFrame
+    df = pd.DataFrame()
+    n_rows = len(pos)
+    
+    # Fill SNPs
+    df["REGION"] = [ref_header] * n_rows
+    df["POS"] = pos
+    df["REF"] = ref
+    df["ALT"] = alt
+    df["REF_DP"] = [0] * n_rows
+    df["REF_RV"] = [0] * n_rows
+    df["REF_QUAL"] = [0] * n_rows
+    df["ALT_DP"] = [600] * n_rows
+    df["ALT_RV"] = [73] * n_rows
+    df["ALT_QUAL"] = [65] * n_rows
+    df["ALT_FREQ"] = [1] * n_rows
+    df["TOTAL_DP"] = [600] * n_rows
+    df["PVAL"] = [0] * n_rows
+    df["PASS"] = ["TRUE"] * n_rows
+    df["GFF_FEATURE"] = ["NA"] * n_rows
+    df["REF_CODON"] = ["NA"] * n_rows
+    df["REF_AA"] = ["NA"] * n_rows
+    df["ALT_CODON"] = ["NA"] * n_rows
+    df["ALT_AA"] = ["NA"] * n_rows
+
+    # return tsv as df
+    return df
