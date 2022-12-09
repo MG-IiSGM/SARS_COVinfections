@@ -169,12 +169,10 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     variant_name = os.path.basename(name_stats_file)
 
     if not variant:
-        
         high = HTZ_SNVs[["REF_FREQ", "ALT_FREQ"]].max(axis=1).to_list()
         low = HTZ_SNVs[["REF_FREQ", "ALT_FREQ"]].min(axis=1).to_list()
     
     else:
-
         high = HTZ_SNVs["ALT_FREQ"].to_list()
         low = HTZ_SNVs["REF_FREQ"].to_list()
     
@@ -222,18 +220,20 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
 
     # stats file
     name_stats_file = os.path.join(dir_name_tsv_stats, name_tsv)
-    name_stats_file_ = name_stats_file[:]
     stats_file = open("%s_stats.csv" %(name_stats_file), "w")
 
     ##### HTZ PROPORTION
-    min_std_low = 0.05
-    max_std_low = 0.08
-    max_prop = 0.75
-    points = 0
+    # std = 0.08
+    upper_std = 0.015
+    # max_prop = 0.75
+    # points = 0
 
     # fields
     fields = ["Muestra", "total_HTZ", "mean_htz_proportion",
-                "std_htz_proportion", "SNPs_between_std"]
+                "std_htz_proportion", "N_SNPs_between_std", "%_SNPs_between_std", 
+                "N_SNPs_higher_mean_std", "mean_dist_higher_mean_std", "std_dist_higher_mean_std",
+                "N_SNPs_lower_mean_std", "mean_dist_lower_mean_std", "std_dist_lower_mean_std", 
+                "Confidence_segregation"]
     row = [name_tsv]
 
     # get htz snps
@@ -246,26 +246,38 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
         # select upper proportion htz
         upper_HTZ_prop_l = HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].max(axis=1).to_list()
         # Statistics
-        mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 3)
-        std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 3)
-        SNPs_in_mean_limits = round(len([ p for p in upper_HTZ_prop_l 
-                                                    if p <= mean_ALT_HTZ_prop + std_ALT_HTZ_prop and
-                                                    p >= mean_ALT_HTZ_prop - std_ALT_HTZ_prop]) / len(upper_HTZ_prop_l),
-                                    2)
-
-        row += [str(n_HTZ_SNPs), str(mean_ALT_HTZ_prop), str(std_ALT_HTZ_prop), str(SNPs_in_mean_limits)]
-
-        if mean_ALT_HTZ_prop <= 0.6 and std_ALT_HTZ_prop <= min_std_low:
-            points += 1
+        mean_ALT_HTZ_prop = round(np.mean(upper_HTZ_prop_l), 2)
+        std_ALT_HTZ_prop = round(np.std(upper_HTZ_prop_l), 2)
+        N_SNPs_between_std = len([ p for p in upper_HTZ_prop_l 
+                                                    if p <= mean_ALT_HTZ_prop + (std_ALT_HTZ_prop + upper_std) and
+                                                    p >= mean_ALT_HTZ_prop - (std_ALT_HTZ_prop + upper_std)])
+        SNPs_in_mean_limits = round(N_SNPs_between_std / len(upper_HTZ_prop_l), 2)
         
-        elif mean_ALT_HTZ_prop <= 0.8 and std_ALT_HTZ_prop <= max_std_low:
-            points += 1
-        
-        if SNPs_in_mean_limits >= max_prop:
-            points += 1
+        # Info SNPs out interval mean +- std
+        ## HIGHER
+        N_SNPs_higher_mean_std = [p - (mean_ALT_HTZ_prop + std_ALT_HTZ_prop) for p in upper_HTZ_prop_l if p > mean_ALT_HTZ_prop + (std_ALT_HTZ_prop + upper_std)]
+        mean_dist_higher_mean_std = round(np.mean(N_SNPs_higher_mean_std), 2)
+        std_dist_higher_mean_std = round(np.std(N_SNPs_higher_mean_std), 2)
+
+        ## LOWER
+        N_SNPs_lower_mean_std = [(mean_ALT_HTZ_prop - std_ALT_HTZ_prop) - p for p in upper_HTZ_prop_l if p < mean_ALT_HTZ_prop - (std_ALT_HTZ_prop + upper_std)]
+        mean_dist_lower_mean_std = round(np.mean(N_SNPs_lower_mean_std), 2)
+        std_dist_lower_mean_std = round(np.std(N_SNPs_lower_mean_std), 2)
+
+        row += [str(n_HTZ_SNPs), str(mean_ALT_HTZ_prop), str(std_ALT_HTZ_prop), str(N_SNPs_between_std), str(SNPs_in_mean_limits),
+                str(len(N_SNPs_higher_mean_std)), str(mean_dist_higher_mean_std), str(std_dist_higher_mean_std),
+                str(len(N_SNPs_lower_mean_std)), str(mean_dist_lower_mean_std), str(std_dist_lower_mean_std)]
+
+        # If possible segregation
+        if mean_ALT_HTZ_prop > 0.6:
+            row += ["1"]
+        else:
+            row += ["0"]
+        # if mean_ALT_HTZ_prop < 0.75 and std_ALT_HTZ_prop <= args.max_std_htz and SNPs_in_mean_limits >= (1 - args.SNPs_out):
+        #     points += 1
     
     else:
-        row += ["0", "0", "0", "0"]
+        row += ["0"] * (len(row) - 1)
 
     ##### PANGOLIN
     if args.pangolin:
@@ -283,8 +295,8 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
         max_df = pd.read_csv(max_file, sep=",")
         row += [str(max_df["lineage"].values[0]), str(max_df["conflict"].values[0])]
 
-        if min_df["conflict"].values[0] == 0 and max_df["conflict"].values[0] == 0:
-            points += 1
+        # if min_df["conflict"].values[0] == 0 and max_df["conflict"].values[0] == 0:
+        #     points += 1
     
     ##### HTZ DISTRIBUTION
     # number htz not related to lineage
@@ -294,25 +306,26 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
 
     max_index = not_lineage_HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].idxmax(axis=1).to_list()
     
-    fields += ["N_SNPs_min", "N_SNPs_max"]
+    fields += ["N_SNPs_not_lineage", "%_SNPs_not_lineage", "N_SNPs_min", "N_SNPs_max"]
 
     if len(max_index):
 
-        row += [str(round(max_index.count("REF_FREQ") / len(max_index), 2)),
+        row += [str(len(max_index)), str(round(len(max_index)/n_HTZ_SNPs, 2)),
+                str(round(max_index.count("REF_FREQ") / len(max_index), 2)),
                 str(round(max_index.count("ALT_FREQ") / len(max_index), 2))]
         
-        if len(max_index) > 5 and \
-            round(max_index.count("REF_FREQ") / len(max_index), 2) > max_prop:
-            points -= 3 
+        # if len(max_index) > 5 and \
+        #     round(max_index.count("REF_FREQ") / len(max_index), 2) > max_prop:
+        #     points -= 3 
 
-        elif round(max_index.count("REF_FREQ") / len(max_index), 2) <= max_prop and \
-                round(max_index.count("ALT_FREQ") / len(max_index), 2) <= max_prop:
-            points += 1
+        # elif round(max_index.count("REF_FREQ") / len(max_index), 2) <= max_prop and \
+        #         round(max_index.count("ALT_FREQ") / len(max_index), 2) <= max_prop:
+        #     points += 1
     else:
-        row += ["0", "0"]
+        row += ["0", "0", "0", "0"]
     
-    fields += ["Points"]
-    row += [str(points)]
+    # fields += ["Points"]
+    # row += [str(points)]
 
     #### WRITE FILE
     to_write = ",".join(fields) + "\n" + ",".join(row) + "\n"
@@ -450,10 +463,6 @@ def parse_mut(mut_dir, args):
     for file in mut_files:
         d_var = {}
         variant = ".".join(file.split(".")[:-1])
-
-        # Select only include variants
-        if len(args.include) and variant not in args.include:
-            continue
 
         f = open(os.path.join(mut_dir, file), "r")
         for l in f:
