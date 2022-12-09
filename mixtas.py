@@ -6,19 +6,7 @@ import pandas as pd
 import numpy as np
 warnings.filterwarnings("ignore")
 
-def bam2tsv(bam_file, args, script_dir, name_bam):
-    
-    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
-    gff_file = os.path.join(script_dir, "NC_045512.2.gff3")
-    tsv_file = os.path.join(args.out_dir, name_bam) + ".tsv"
-
-    cmd = "samtools mpileup -aa -A -d 0 -B -Q 0 --reference %s %s " %(ref_genome, bam_file)
-    cmd += "| ivar variants -p %s -q 0 -t 0.1 -m 0 -r %s -g %s" %(tsv_file, ref_genome, gff_file)
-    subprocess.call(cmd, shell=True)
-
-    return tsv_file
-
-def parse_vcf(args, tsv_file, name_tsv, mutations):
+def parse_vcf(args, tsv_file, name_tsv):
 
     # create out/tsv dir
     dir_name_tsv = os.path.join(args.out_dir, name_tsv)
@@ -59,24 +47,12 @@ def parse_vcf(args, tsv_file, name_tsv, mutations):
             "ALT_DP", "ALT_FREQ", "REF_CODON", "REF_AA", "ALT_CODON",
             "ALT_AA", "GEN"]]
 
-    # Get SNPs lineage
-    df["LINEAGE"] = utils.indetify_variants(df, mutations)
-
-    # separate lineages label 
-    df_explode = df.explode("LINEAGE")
-
-    # Change [] ""
-    df.LINEAGE = df.LINEAGE.apply(lambda y: np.nan if len(y)==0 else y)
-    df.fillna("", inplace=True)
-
     # create out/tsv/explode dir
     dir_name_tsv_explode = os.path.join(dir_name_tsv, "SNP_LABEL")
     utils.check_create_dir(dir_name_tsv_explode)
     
     # Store df
     df.to_csv("%s_lineage.csv" %(dir_name_tsv_explode + "/" + name_tsv),
-                index=False, sep=",")
-    df_explode.to_csv("%s_exp_lineage.csv" %(dir_name_tsv_explode + "/" + name_tsv),
                 index=False, sep=",")
     
     return df

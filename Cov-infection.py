@@ -150,18 +150,14 @@ def main():
                                 out_stats_coverage_dir, sample)
 
 
-    # parse variant calling file
-    df = mixtas.parse_vcf(args, tsv_file, name_tsv, mutations)
+        # parse variant calling file
+        df = mixtas.parse_vcf(args, tsv_file, name_tsv)
 
-    # get alingment
-    mixtas.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
+        # get alingment
+        mixtas.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
 
-    # include previous or post episodes
-    if args.episode:
-        mixtas.compare_episode(args, name_tsv, script_dir)
-
-    # Get stats
-    utils.quality_control(df, args, mutations, name_tsv, dir_name_tsv)
+        # Get stats
+        utils.quality_control(df, args, mutations, name_tsv, dir_name_tsv)
     
     # If all OK
     exit(0)
