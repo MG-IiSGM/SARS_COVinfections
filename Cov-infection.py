@@ -5,12 +5,18 @@ import argparse, os, utils, mixtas, sys
 parser = argparse.ArgumentParser(description="Script to infer a potential co-infection")
 
 # INPUT parameters
-parser.add_argument("bamfile", help="bam file to extract htz positions")
-parser.add_argument("covfile", help="cov file to extract coverage")
-parser.add_argument("--out_dir", help="Output directory", default=".")
-parser.add_argument("--file_sep", help="File separator", default="\t")
+parser.add_argument("-i", "--input_dir", metavar="input_directory",
+                    type=str, required=True, help="Input directory containing all fastq files")
+parser.add_argument("-r", "--reference", metavar="reference",
+                    type=str, required=True, help="Reference genome to map fastq files")
+parser.add_argument("-o", "--out_dir", help="Output directory", type=str, required=True,
+                    default=".")
+parser.add_argument('-t', '--threads', type=str, dest="threads",
+                                  required=False, default=4, help='Threads to use')
+parser.add_argument('-p', '--primers', type=str, default='/home/laura/DATABASES/Anotacion/COVID/primers/nCoV-2019.bed',
+                                 required=False, help='Bed file including primers to trim')
 
-# OPTIONAL
+# COINFECTION ARGUMENTS
 parser.add_argument("--min_DP", help="minimum frequency (depth) to accept a SNP", default=10,
                     type=int)
 parser.add_argument("--min_HOM", help="minimum proportion for homocygosis",
@@ -50,21 +56,99 @@ def main():
         # Check out dir
         utils.check_create_dir(args.out_dir)
 
-        # bam file (SNPs)
-        ap_bamfile = os.path.abspath(args.bamfile)
-        name_bam = os.path.basename(ap_bamfile).rstrip(".rg.markdup.trimmed.sorted.bam")
+        # Output subdirectories
+        out_qc_dir = os.path.join(args.out_dir, "Quality")
+        out_qc_pre_dir = os.path.join(out_qc_dir, "raw")
+        out_qc_post_dir = os.path.join(out_qc_dir, "processed")
+        out_trim_dir = os.path.join(args.out_dir, "Trimmed")
+        out_map_dir = os.path.join(args.out_dir, "Bam")
+        out_variant_dir = os.path.join(args.out_dir, "Variants")
+        out_consensus_dir = os.path.join(args.out_dir, "Consensus")
+        out_stats_dir = os.path.join(args.out_dir, "Stats")
+        out_stats_bamstats_dir = os.path.join(
+        out_stats_dir, "Bamstats")
+        out_stats_coverage_dir = os.path.join(
+        out_stats_dir, "Coverage")
+
+
+        # Obtain all R1 and R2 from folder
+        r1, r2 = utils.extract_read_list(args.input_dir)
+    
+    # Loop for each fastq
+    for r1_file, r2_file in zip(r1, r2):
+
+        sample = utils.extract_sample(r1_file, r2_file)
+
+        utils.check_create_dir(out_qc_dir)
         
-        # get tsv from bam file
-        tsv_file = mixtas.bam2tsv(args.bamfile, args, script_dir, name_bam)
-        name_tsv = os.path.basename(tsv_file).rstrip(".tsv")
-        dir_name_tsv = os.path.join(args.out_dir, name_tsv)
+        # QUALITY CHECK in RAW with fastqc
+        ######################################################
+        utils.fastqc_quality(r1_file, r2_file,
+                                out_qc_pre_dir, args.threads)
+        
+        # QUALITY TRIMMING AND ADAPTER REMOVAL WITH fastp
+        ###################################################
+        out_trim_name_r1 = sample + ".trimmed_R1.fastq.gz"
+        out_trim_name_r2 = sample + ".trimmed_R2.fastq.gz"
+        output_trimming_file_r1 = os.path.join(
+            out_trim_dir, out_trim_name_r1)
+        output_trimming_file_r2 = os.path.join(
+            out_trim_dir, out_trim_name_r2)
+        utils.fastp_trimming(r1_file, r2_file, sample, out_trim_dir,
+                threads=args.threads, min_qual=20, window_size=10, min_len=35)
+        
+        # QUALITY CHECK in TRIMMED with fastqc
+        ######################################################
+        utils.check_create_dir(out_qc_dir)
+        utils.fastqc_quality(output_trimming_file_r1, output_trimming_file_r2,
+         out_qc_post_dir, args.threads)
+        
+        # MAPPING WITH BWA - SAM TO SORTED BAM - ADD HEADER SG
+        #####################################################
+        out_map_name = sample + ".rg.sorted.bam"
+        output_map_file = os.path.join(out_map_dir, out_map_name)
+        utils.bwa_mapping(output_trimming_file_r1, output_trimming_file_r2,
+            args.reference, sample, out_map_dir, threads=args.threads)
+        utils.sam_to_index_bam(
+            sample, out_map_dir, output_trimming_file_r1, threads=args.threads)
+        
+         #MARK DUPLICATES WITH PICARDTOOLS ###################
+        #####################################################
+        out_markdup_name = sample + ".rg.markdup.sorted.bam"
+        output_markdup_file = os.path.join(
+            out_map_dir, out_markdup_name)
+        utils.picard_markdup(output_map_file)
 
-        # Parse mutations.
-        mut_dir = os.path.join(script_dir, "mutations")
-        mutations = utils.parse_mut(mut_dir, args)
+        #TRIM PRIMERS WITH ivar trim ########################
+        #####################################################
+        utils.ivar_trim(output_markdup_file, args.primers, sample,
+                min_length=30, min_quality=20, sliding_window_width=4)
+        
+        #VARIANT CALLING WTIH ivar variants##################
+        #####################################################
+        utils.check_create_dir(out_variant_dir)
+        out_markdup_trimmed_name = sample + ".rg.markdup.trimmed.sorted.bam"
+        output_markdup_trimmed_file = os.path.join(
+                out_map_dir, out_markdup_trimmed_name)
+        utils.ivar_variants(args.reference, output_markdup_trimmed_file, out_variant_dir, sample,
+                min_quality=0, min_frequency_threshold=0.1, min_depth=0)
+        
+        #CREATE CONSENSUS with ivar consensus##################
+        #######################################################
+        utils.check_create_dir(out_consensus_dir)
+        utils.ivar_consensus(output_markdup_trimmed_file, out_consensus_dir, sample,
+                    min_quality=20, min_frequency_threshold=0.8, min_depth=10, uncovered_character='N')
 
-        # parse coverage file
-        cov_d = utils.parse_covfile(args.covfile)
+        ########################CREATE STATS ###################
+        ########################################################
+        utils.check_create_dir(out_stats_dir)
+        utils.check_create_dir(out_stats_bamstats_dir)
+        utils.check_create_dir(out_stats_coverage_dir)
+        utils.create_bamstat(output_markdup_trimmed_file,
+                out_stats_bamstats_dir, sample, threads=args.threads)
+        utils.create_coverage(output_markdup_trimmed_file,
+                                out_stats_coverage_dir, sample)
+
 
     # parse variant calling file
     df = mixtas.parse_vcf(args, tsv_file, name_tsv, mutations)
