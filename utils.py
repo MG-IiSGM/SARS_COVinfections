@@ -3,10 +3,40 @@ import pandas as pd
 import numpy as np
 from pandarallel import pandarallel
 import matplotlib.pyplot as plt
-import re, subprocess, gzip
+import re, subprocess, gzip, sys
 
 nproc = multiprocessing.cpu_count()
 pandarallel.initialize(nb_workers=nproc, verbose=0)
+
+def execute_subprocess(cmd, isShell=False):
+    """
+    https://crashcourse.housegordon.org/python-subprocess.html
+    https://docs.python.org/3/library/subprocess.html 
+    Execute and handle errors with subprocess, outputting stderr instead of the subprocess CalledProcessError
+    """
+
+    if cmd[0] == "java":
+        prog = cmd[2].split("/")[-1] + " " + cmd[3]
+        param = cmd[4:]
+    elif cmd[0] == "samtools" or cmd[0] == "bwa" or cmd[0] == "gatk":
+        prog = " ".join(cmd[0:2])
+        param = cmd[3:]
+    else:
+        prog = cmd[0]
+        param = cmd[1:]
+
+    try:
+        command = subprocess.run(
+            cmd, shell=isShell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if command.returncode != 0:
+            print("Command %s FAILED\n" % prog +
+                        + "WITH PARAMETERS: " +
+                         " ".join(param) + "\n"
+                        + "EXIT-CODE: %d\n" % command.returncode +
+                        "ERROR:\n" + command.stderr.decode().strip())
+
+    except OSError as e:
+        sys.exit( "failed to execute program '%s': %s" % (prog, str(e)) )
 
 def extract_read_list(input_dir):
     """
@@ -69,14 +99,14 @@ def extract_sample(R1_file, R2_file):
 
     return sample_name
 
-def fastqc_quality(r1, r2, output_dir, threads=8):
+def fastqc_quality(r1, r2, output_dir, threads):
     check_create_dir(output_dir)
 
     cmd = ['fastqc', r1, r2, '-o', output_dir, '--threads', str(threads)]
 
-    subprocess.call(cmd, shell=True)
+    execute_subprocess(cmd)
 
-def fastp_trimming(r1, r2, sample, output_dir, threads=6, min_qual=20, window_size=10, min_len=35):
+def fastp_trimming(r1, r2, sample, output_dir, threads, min_qual, window_size, min_len):
     check_create_dir(output_dir)
 
     output_trimmed_r1 = os.path.join(
@@ -107,7 +137,7 @@ def fastp_trimming(r1, r2, sample, output_dir, threads=6, min_qual=20, window_si
            '--html', html_file,
            '--thread', str(threads)]
 
-    subprocess.call(cmd, shell=True)
+    execute_subprocess(cmd)
 
 def bwa_mapping(r1, r2, reference, sample, output_dir, threads=8):
     """
@@ -124,17 +154,12 @@ def bwa_mapping(r1, r2, reference, sample, output_dir, threads=8):
     check_create_dir(output_dir)
     
     cmd_index = ["bwa", "index", reference]
-    subprocess.call(cmd_index, shell=True)
+    execute_subprocess(cmd_index)
     
     cmd_map = ["bwa", "mem", "-Y", "-M", "-t", str(threads), "-o", output_file, reference, r1, r2]
-    subprocess.call(cmd_map, shell=True)
+    execute_subprocess(cmd_map)
 
 def sam_to_index_bam(sample, output_dir, r1, threads):
-    # input_sam_path = os.path.abspath(input_sam)
-    # if output_bam == "inputdir":
-    #     output_bam = os.path.dirname(input_sam_path)
-    # else:
-    #     output_bam = output_bam
 
     sample_name = sample + ".sam"
     input_sam_path = os.path.join(output_dir, sample_name)
@@ -151,12 +176,12 @@ def sam_to_index_bam(sample, output_dir, r1, threads):
     output_bg_sorted_path = os.path.join(output_dir, output_bg_sorted_name)
 
     cmd_view = ["samtools", "view", "-Sb", input_sam_path, "--threads", str(threads), "-o", output_bam_path,]
-    subprocess.call(cmd_view, shell=True)
+    execute_subprocess(cmd_view)
 
     check_remove_file(input_sam_path)
     
     cmd_sort = ["samtools", "sort", output_bam_path, "-o", output_sorted_path]
-    subprocess.call(cmd_sort, shell=True)
+    execute_subprocess(cmd_sort)
 
     check_remove_file(output_bam_path)
 
@@ -205,7 +230,7 @@ def add_SG(sample, input_bam, output_bg_sorted, r1):
     cmd = ["picard", "AddOrReplaceReadGroups", 
     input_param, output_param, rg_id_param, rg_lb_param, rg_pl_param, rg_pu_param, rg_sm_param,
     "SORT_ORDER=coordinate"]
-    subprocess.call(cmd, shell=True)
+    execute_subprocess(cmd)
 
 def picard_markdup(input_bam):
     
@@ -224,11 +249,11 @@ def picard_markdup(input_bam):
     check_create_dir(stat_output_dir)
 
     cmd_markdup = ["picard", "MarkDuplicates", "-I", input_bam, "-O", output_markdup, "-M", stat_output_full]
-    subprocess.call(cmd_markdup, shell=True)
+    execute_subprocess(cmd_markdup)
     
     #samtools sort: samtools sort $output_dir/$sample".sorted.bam" -o $output_dir/$sample".sorted.bam"
     cmd_sort = ["samtools", "sort", output_markdup, "-o", output_markdup_sorted]
-    subprocess.call(cmd_sort, shell=True)
+    execute_subprocess(cmd_sort)
 
     check_remove_file(input_bam)
     check_remove_file(output_markdup)
@@ -256,17 +281,17 @@ def ivar_trim(input_bam, primers_file, sample, min_length=30, min_quality=20, sl
     output_trimmed_sorted_bam = input_bam.split('.')[0] + ".rg.markdup.trimmed.sorted.bam"
     
     cmd = ["ivar", "trim", "-i", input_bam, "-b", primers_file, "-p", prefix, "-m", str(min_length), "-q", str(min_quality), "-s", str(sliding_window_width), "-e"]
-    subprocess.call(cmd, shell=True)
+    execute_subprocess(cmd)
 
     check_remove_file(input_bam)
 
     cmd_sort = ["samtools", "sort", output_trimmed_bam, "-o", output_trimmed_sorted_bam]
-    subprocess.call(cmd_sort, shell=True)
+    execute_subprocess(cmd_sort)
 
     check_remove_file(output_trimmed_bam)
 
     cmd_index = ["samtools", "index", output_trimmed_sorted_bam]
-    subprocess.call(cmd_index, shell=True)
+    execute_subprocess(cmd_index)
 
     check_remove_file(input_bai)
 
@@ -283,7 +308,7 @@ def ivar_variants(reference, input_bam, output_variant, sample, min_quality=20, 
         Output Options   Description
            -p    (Required) Prefix for the output tsv variant file
     """
-    ivar_folder = os.path.join(output_variant, 'ivar_raw')
+    ivar_folder = output_variant
     check_create_dir(ivar_folder)
     prefix = ivar_folder + '/' + sample
 
@@ -298,7 +323,7 @@ def ivar_variants(reference, input_bam, output_variant, sample, min_quality=20, 
     cmd = "samtools mpileup -aa -A -d 0 -B -Q 0 --reference {reference} {input_bam} | \
         ivar variants -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -r {reference}".format(**input)
 
-    subprocess.call(cmd, Shell=True)
+    execute_subprocess(cmd, isShell=True)
 
 def ivar_consensus(input_bam, output_consensus, sample, min_quality=20, min_frequency_threshold=0.8, min_depth=20, uncovered_character='N'):
     """
@@ -334,17 +359,27 @@ def ivar_consensus(input_bam, output_consensus, sample, min_quality=20, min_freq
     cmd = "samtools mpileup -aa -A -d 0 -B -Q 0  {input_bam} | \
         ivar consensus -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -n {uncovered_character}".format(**input)
 
-    subprocess.call(cmd, Shell=True)
+    execute_subprocess(cmd, isShell=True)
+
+def replace_consensus_header(input_fasta):
+    with open(input_fasta, 'r+') as f:
+        content = f.read()
+        header = content.split('\n')[0].strip('>')
+        new_header = header.split('_')[1].strip()
+        content = content.replace(header, new_header)
+        f.seek(0)
+        f.write(content)
+        f.truncate()
 
 def create_bamstat(input_bam, output_dir, sample, threads=8):
     output_file = os.path.join(output_dir, sample + ".bamstats")
     cmd = "samtools flagstat --threads {} {} > {}".format(str(threads), input_bam, output_file)
-    subprocess.call(cmd, Shell=True)
+    execute_subprocess(cmd, isShell=True)
 
 def create_coverage(input_bam, output_dir, sample):
     output_file = os.path.join(output_dir, sample + ".cov")
     cmd = "samtools depth -aa {} > {}".format(input_bam, output_file)
-    subprocess.call(cmd, Shell=True)
+    execute_subprocess(cmd, isShell=True)
 
 # check if directory exists
 def check_create_dir(path):
@@ -540,10 +575,11 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     plt.savefig("%s.png" %(name_stats_file)) 
 
 
-def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
+def quality_control(df, args, name_tsv, dir_name_tsv):
 
     # out_dir_stats
-    dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
+    name_tsv_stats = os.path.join(dir_name_tsv, name_tsv)
+    dir_name_tsv_stats = os.path.join(name_tsv_stats, "Stats")
     check_create_dir(dir_name_tsv_stats)
 
     # stats file
@@ -601,8 +637,6 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
             row += ["1"]
         else:
             row += ["0"]
-        # if mean_ALT_HTZ_prop < 0.75 and std_ALT_HTZ_prop <= args.max_std_htz and SNPs_in_mean_limits >= (1 - args.SNPs_out):
-        #     points += 1
     
     else:
         row += ["0"] * (len(row) - 1)
@@ -614,7 +648,7 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
         fields += ["Min_pangolin", "Min_conflict", "Max_pangolin", "Max_conflict"]
 
         # parse pangolin files
-        out_seq_dir = os.path.join(dir_name_tsv, "Sequences")
+        out_seq_dir = os.path.join(name_tsv_stats, "Sequences")
         min_file = os.path.join(out_seq_dir, name_tsv + "_1_pangolin.csv")
         min_df = pd.read_csv(min_file, sep=",")
         row += [str(min_df["lineage"].values[0]), str(min_df["conflict"].values[0])]
@@ -623,38 +657,6 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
         max_df = pd.read_csv(max_file, sep=",")
         row += [str(max_df["lineage"].values[0]), str(max_df["conflict"].values[0])]
 
-        # if min_df["conflict"].values[0] == 0 and max_df["conflict"].values[0] == 0:
-        #     points += 1
-    
-    ##### HTZ DISTRIBUTION
-    # number htz not related to lineage
-    not_lineage_HTZ_SNVs = HTZ_SNVs[(HTZ_SNVs["LINEAGE"] == "") & 
-                            ((HTZ_SNVs["REF_FREQ"] > args.ambiguity) |
-                                ((HTZ_SNVs["ALT_FREQ"] > args.ambiguity)))]
-
-    max_index = not_lineage_HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].idxmax(axis=1).to_list()
-    
-    fields += ["N_SNPs_not_lineage", "%_SNPs_not_lineage", "N_SNPs_min", "N_SNPs_max"]
-
-    if len(max_index):
-
-        row += [str(len(max_index)), str(round(len(max_index)/n_HTZ_SNPs, 2)),
-                str(round(max_index.count("REF_FREQ") / len(max_index), 2)),
-                str(round(max_index.count("ALT_FREQ") / len(max_index), 2))]
-        
-        # if len(max_index) > 5 and \
-        #     round(max_index.count("REF_FREQ") / len(max_index), 2) > max_prop:
-        #     points -= 3 
-
-        # elif round(max_index.count("REF_FREQ") / len(max_index), 2) <= max_prop and \
-        #         round(max_index.count("ALT_FREQ") / len(max_index), 2) <= max_prop:
-        #     points += 1
-    else:
-        row += ["0", "0", "0", "0"]
-    
-    # fields += ["Points"]
-    # row += [str(points)]
-
     #### WRITE FILE
     to_write = ",".join(fields) + "\n" + ",".join(row) + "\n"
     stats_file.write(to_write)
@@ -662,85 +664,6 @@ def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
 
     # plot HTZ pos
     plot_proportions(HTZ_SNVs, name_stats_file)
-
-def include_lineages(args, df_aln_SNV, mutations):
-    l_SNPs = {}
-
-    for variant in mutations:
-        # BA.2
-
-        # List to store mutations asociated to the lineage
-        l_SNPs[variant] = []
-
-        # Positions associated with the lineage
-        mut_dict = mutations[variant]
-
-        for i in range(len(df_aln_SNV.columns)):
-
-            pos = list(df_aln_SNV.columns)[i]
-
-            if pos in mut_dict:
-                l_SNPs[variant].append(variant)
-            else:
-                l_SNPs[variant].append("")
-
-    # Create pandas Dataframe with positions
-    l_SNPs_df = pd.DataFrame()
-    for variant in mutations:
-        l_SNPs_df[variant] = l_SNPs[variant]
-    l_SNPs_df.index = df_aln_SNV.columns
-
-    # Concatenate with SNP alignment
-    df_concat = pd.concat([df_aln_SNV, l_SNPs_df.T], sort=False)
-
-    return df_concat
-
-def mini_compare(aln_name):
-
-    # Parse alingment
-    l_samples = {}
-
-    # aln directory
-    aln_dir = os.path.dirname(aln_name)
-
-    # Parse alingment
-    f = open(aln_name, "r")
-    header = ""
-    ref_sequence = ""
-    for line in f:
-        if line.startswith(">"):
-            if header != "":
-                l_samples[header] = list(ref_sequence)
-            header = line.strip().split(" ")[0][1:]
-            ref_sequence = ""
-        else:
-            ref_sequence += line.strip().upper()
-    l_samples[header] = list(ref_sequence)
-    f.close()
-
-    df_episodes = pd.DataFrame(list(l_samples.values()), index = l_samples.keys()).T
-    
-    # COMAPARE ROWS
-    samples = list(df_episodes.columns[1:])
-    row = len(samples)
-    matrix = np.zeros((row, row))
-
-    for i in range(len(samples)):
-        column = samples[i]
-
-        for e in range(len(samples)):
-            c = samples[e]
-
-            # Fill the matrix
-
-            matrix[e, i] = sum(
-                (df_episodes[column] != df_episodes[c]) & 
-            ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
-             (df_episodes[c] != "N") & (df_episodes[c] != "-")
-                )
-
-    compare_df = pd.DataFrame(matrix, columns=samples, index=samples)    
-    compare_df.to_csv(os.path.join(aln_dir, "episode_compare.csv"), sep=",")
 
 def color_df(row):
 
@@ -779,85 +702,10 @@ def color_df(row):
 
     return l_colors
 
-def parse_mut(mut_dir, args):
-
-    # Dictionary to store mutations
-    d_mut = {}
-
-    # List mutation files
-    mut_files = [file for file in os.listdir(mut_dir) if file.endswith(".csv")]
-
-    # Parse files to get mutations
-    for file in mut_files:
-        d_var = {}
-        variant = ".".join(file.split(".")[:-1])
-
-        f = open(os.path.join(mut_dir, file), "r")
-        for l in f:
-            line = l.strip().replace('"', '').split(",")
-
-            # aminoacid mutation (A34L)
-            aa_mut = line[0]
-            # base mutation (A3456G)
-            base_mut = line[1]
-
-            # if indel skip
-            if base_mut.startswith("-"):
-                continue
-
-            # Position in genome (3456)
-            pos = int(line[1][1:-1])
-            # Store -> {3456: [A34L, A3456G]}
-            d_var[pos] = [aa_mut, base_mut]
-        f.close()
-
-        # Store mutations related to variant
-        # {BA.1: {3456: [A34L, A3456G]}}
-        d_mut[variant] = d_var
-    
-    return d_mut
-
-def indetify_variants(df, mutations):
-
-    # List to store lineages
-    lineage = []
-
-    # Label SNVs
-    for i in range(len(df.POS)):
-        pos = list(df.POS)[i]
-
-        for variant in mutations:
-            #variant: BA.2
-
-            # variant mutations
-            mut_dict = mutations[variant]
-
-            if not pos in list(mut_dict.keys()):
-                if len(lineage) < df.shape[0]:
-                    lineage.append([])
-            
-            else:
-                pos_dict = mut_dict[pos]
-                ref = pos_dict[1][0]
-                alt = pos_dict[1][-1]
-
-                if ref == list(df.REF)[i] and alt == list(df.ALT)[i]:
-                    if len(lineage) < df.shape[0]:
-                        lineage.append([variant])
-
-                    else:
-                        lineage[i] += [variant]
-    
-    # If not lineages
-    if len(lineage) == 0:
-        lineage = [[]] * len(df.POS)
-
-    return lineage
-
-def fasta2compare(script_dir, args, out_seq_dir, name_fasta):
+def fasta2compare(args, out_seq_dir, name_fasta):
 
     # ref genome
-    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    ref_genome = args.reference
 
     # Get tsv
     df = get_SNPs_fasta(ref_genome, out_seq_dir, name_fasta)

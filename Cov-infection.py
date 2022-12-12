@@ -9,8 +9,8 @@ parser.add_argument("-i", "--input_dir", metavar="input_directory",
                     type=str, required=True, help="Input directory containing all fastq files")
 parser.add_argument("-r", "--reference", metavar="reference",
                     type=str, required=True, help="Reference genome to map fastq files")
-parser.add_argument("-o", "--out_dir", help="Output directory", type=str, required=True,
-                    default=".")
+parser.add_argument("-o", "--out_dir", help="Output directory", type=str, 
+                    required=False, default=".")
 parser.add_argument('-t', '--threads', type=str, dest="threads",
                                   required=False, default=4, help='Threads to use')
 parser.add_argument('-p', '--primers', type=str, default='/home/laura/DATABASES/Anotacion/COVID/primers/nCoV-2019.bed',
@@ -35,8 +35,6 @@ parser.add_argument("--pangolin", help="pangolin annotation",
                     action="store_true")
 parser.add_argument("--snipit", help="snipit analysis", 
                     action="store_true")
-parser.add_argument("--episode", help="Extra recent episodes (samples) as fasta sequences", 
-                    default=[], required=False, action='append')
 
 # main
 def main():
@@ -48,7 +46,7 @@ def main():
     # check arguments
     args = parser.parse_args()
 
-    if utils.check_argmunets(args, script_dir):
+    if utils.check_argmunets(args):
         exit(1)
 
     else:
@@ -78,11 +76,11 @@ def main():
     for r1_file, r2_file in zip(r1, r2):
 
         sample = utils.extract_sample(r1_file, r2_file)
+        print(sample)
 
-        utils.check_create_dir(out_qc_dir)
-        
         # QUALITY CHECK in RAW with fastqc
         ######################################################
+        utils.check_create_dir(out_qc_dir)
         utils.fastqc_quality(r1_file, r2_file,
                                 out_qc_pre_dir, args.threads)
         
@@ -99,7 +97,6 @@ def main():
         
         # QUALITY CHECK in TRIMMED with fastqc
         ######################################################
-        utils.check_create_dir(out_qc_dir)
         utils.fastqc_quality(output_trimming_file_r1, output_trimming_file_r2,
          out_qc_post_dir, args.threads)
         
@@ -127,6 +124,9 @@ def main():
         #VARIANT CALLING WTIH ivar variants##################
         #####################################################
         utils.check_create_dir(out_variant_dir)
+        out_ivar_variant_name = sample + ".tsv"
+        out_ivar_variant_file = os.path.join(
+            out_variant_dir, out_ivar_variant_name)
         out_markdup_trimmed_name = sample + ".rg.markdup.trimmed.sorted.bam"
         output_markdup_trimmed_file = os.path.join(
                 out_map_dir, out_markdup_trimmed_name)
@@ -136,14 +136,22 @@ def main():
         #CREATE CONSENSUS with ivar consensus##################
         #######################################################
         utils.check_create_dir(out_consensus_dir)
+        out_ivar_consensus_name = sample + ".fa"
+        out_ivar_consensus_file = os.path.join(
+                out_consensus_dir, out_ivar_consensus_name)
         utils.ivar_consensus(output_markdup_trimmed_file, out_consensus_dir, sample,
                     min_quality=20, min_frequency_threshold=0.8, min_depth=10, uncovered_character='N')
+        utils.replace_consensus_header(out_ivar_consensus_file)
+
 
         ########################CREATE STATS ###################
         ########################################################
         utils.check_create_dir(out_stats_dir)
         utils.check_create_dir(out_stats_bamstats_dir)
         utils.check_create_dir(out_stats_coverage_dir)
+        out_coverage_name = sample + ".cov"
+        out_coverage_file = os.path.join(
+            out_stats_coverage_dir, out_coverage_name)
         utils.create_bamstat(output_markdup_trimmed_file,
                 out_stats_bamstats_dir, sample, threads=args.threads)
         utils.create_coverage(output_markdup_trimmed_file,
@@ -151,13 +159,13 @@ def main():
 
 
         # parse variant calling file
-        df = mixtas.parse_vcf(args, tsv_file, name_tsv)
+        df = mixtas.parse_vcf(args, out_ivar_variant_file)
 
         # get alingment
-        mixtas.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
+        mixtas.get_alingment(args, out_consensus_dir, sample, df, out_coverage_file)
 
         # Get stats
-        utils.quality_control(df, args, mutations, name_tsv, dir_name_tsv)
+        utils.quality_control(df, args, sample, out_consensus_dir)
     
     # If all OK
     exit(0)

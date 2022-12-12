@@ -6,14 +6,10 @@ import pandas as pd
 import numpy as np
 warnings.filterwarnings("ignore")
 
-def parse_vcf(args, tsv_file, name_tsv):
-
-    # create out/tsv dir
-    dir_name_tsv = os.path.join(args.out_dir, name_tsv)
-    utils.check_create_dir(dir_name_tsv)
+def parse_vcf(args, tsv_file):
 
     # Read tsv
-    df = pd.read_csv(tsv_file, sep=args.file_sep)
+    df = pd.read_csv(tsv_file, sep="\t")
 
     # Discard SNPs in INDELs
     df = utils.discard_SNP_in_DEL(df)
@@ -46,24 +42,20 @@ def parse_vcf(args, tsv_file, name_tsv):
     df = df[["POS", "REF", "ALT", "TOTAL_DP", "REF_DP", "REF_FREQ",
             "ALT_DP", "ALT_FREQ", "REF_CODON", "REF_AA", "ALT_CODON",
             "ALT_AA", "GEN"]]
-
-    # create out/tsv/explode dir
-    dir_name_tsv_explode = os.path.join(dir_name_tsv, "SNP_LABEL")
-    utils.check_create_dir(dir_name_tsv_explode)
-    
-    # Store df
-    df.to_csv("%s_lineage.csv" %(dir_name_tsv_explode + "/" + name_tsv),
-                index=False, sep=",")
     
     return df
 
-def get_alingment(args, script_dir, name_tsv, df, mutations, cov_d):
+def get_alingment(args, script_dir, name_tsv, df, cov_file):
 
     # directories
-    dir_name_tsv = os.path.join(args.out_dir, name_tsv)
+    dir_name_tsv = os.path.join(script_dir, name_tsv)
+    utils.check_create_dir(dir_name_tsv)
+
+    # parse coverage file
+    cov_d = utils.parse_covfile(cov_file)
 
     # Parse reference sequence
-    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    ref_genome = args.reference
     l_ref_sequence, header, ref_sequence = utils.parse_fasta(ref_genome)
 
     # List with Sample1 (<ALT_FREQ), Sample1+2 and Sample2 (>ALT_FREQ)
@@ -164,7 +156,7 @@ def get_alingment(args, script_dir, name_tsv, df, mutations, cov_d):
         sample.close()
 
         # get tsv (VCF) and cov (COV)
-        utils.fasta2compare(script_dir, args, out_seq_dir, name_tsv + "_%s" %(n))
+        utils.fasta2compare(args, out_seq_dir, name_tsv + "_%s" %(n))
 
         if args.pangolin:
             subprocess.run(["pangolin", out_seq_dir + "/" + name_tsv + "_%s.fasta" %(n),
@@ -205,7 +197,7 @@ def get_alingment(args, script_dir, name_tsv, df, mutations, cov_d):
                         shell=True)
 
     # Get plot of each mixed sample
-    aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations, cov_d)
+    aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, cov_d)
 
 def segregate_SNP(base_dict, prop_dict, l_ref_sequence, args, mean_ALT_HTZ_prop, std_ALT_HTZ_prop, l_pos_low_certain, genomes, sequences, iupac):
 
@@ -288,7 +280,7 @@ def segregate_SNP(base_dict, prop_dict, l_ref_sequence, args, mean_ALT_HTZ_prop,
         # seq1_seq2
         genomes[1][coordinate] = max_base + "/" + min_base
 
-def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations, cov_d):
+def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, cov_d):
 
     # out_aln_dir
     out_aln_dir = dir_name_tsv + "/ALN"
@@ -317,9 +309,7 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations,
     DP_df["Total_DP"] = position_dp
     DP_df.index = position_l
     df_aln_SNV = pd.concat([df_aln_SNV, DP_df.T], sort=False)
-
-    # include lineages to df
-    df_concat = utils.include_lineages(args, df_aln_SNV, mutations)
+    df_concat = df_aln_SNV
 
     # Store df
     df_concat.to_csv("%s_aln.csv" %(out_aln_dir + "/" + name_tsv), sep=",")
@@ -341,59 +331,3 @@ def aln2df(args, name_tsv, dir_name_tsv, genomes, l_ref_sequence, df, mutations,
     dfi.export(df_concat_HTZ.style.apply(utils.color_df, axis = 0),
                     "%s_HTZ_aln.png" %(out_aln_dir + "/" + name_tsv),
                     max_cols=-1)
-
-def compare_episode(args, name_tsv, script_dir):
-    
-    # GENERATE ALINGMENT
-    # out episode dir
-    dir_name_tsv = os.path.join(args.out_dir, name_tsv)
-    out_epi_dir = os.path.join(dir_name_tsv, "Episode")
-    out_seq_dir = os.path.join(dir_name_tsv, "Sequences")
-    utils.check_create_dir(out_epi_dir)
-
-    # Construct alignment
-    alin_episode = open(os.path.join(out_epi_dir, "episode_aln.fasta"), "w")
-
-    # Parse reference sequence
-    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
-    l_ref_sequence, header_ref, ref_sequence = utils.parse_fasta(ref_genome)
-
-    # Sample1
-    S1_seq_l, header_S1, S1_sequence = utils.parse_fasta(out_seq_dir + "/" + name_tsv + "_1.fasta")
-
-    # Sample2
-    S2_seq_l, header_S2, S2_sequence = utils.parse_fasta(out_seq_dir + "/" + name_tsv + "_2.fasta")
-
-    # d to store other episodes
-    d_episodes = {}
-    for sample in args.episode:
-        l_seq, header_seq, seq = utils.parse_fasta(sample)
-        d_episodes[header_seq] = seq
-    
-    # Write header + sequence
-    to_write = header_ref + "\n" + ref_sequence + "\n" + header_S1 + "\n" + \
-                S1_sequence + "\n" + header_S2 + "\n" + S2_sequence + "\n"
-    
-    for epi in d_episodes:
-        to_write += epi + "\n" + d_episodes[epi] + "\n"
-    
-    alin_episode.write(to_write)
-    alin_episode.close()
-
-    # Align samples with mafft
-    aln_name = os.path.join(out_epi_dir, "episode_aln.aln")
-    try:
-        subprocess.call("mafft --quiet --maxiterate 100 %s  > %s" %(os.path.join(out_epi_dir, "episode_aln.fasta"),
-                        aln_name),
-                        shell=True)
-    except:
-        print("MAFFT aligner is not installed")
-        exit(1)
-
-    # snipit
-    if args.snipit:
-        subprocess.run(["snipit", aln_name, "-f", "pdf",
-                            "--flip-vertical", "-o",
-                            aln_name.replace(".aln", "")])
-    
-    utils.mini_compare(aln_name)
