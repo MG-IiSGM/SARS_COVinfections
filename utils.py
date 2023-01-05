@@ -3,383 +3,9 @@ import pandas as pd
 import numpy as np
 from pandarallel import pandarallel
 import matplotlib.pyplot as plt
-import re, subprocess, gzip, sys
 
 nproc = multiprocessing.cpu_count()
 pandarallel.initialize(nb_workers=nproc, verbose=0)
-
-def execute_subprocess(cmd, isShell=False):
-    """
-    https://crashcourse.housegordon.org/python-subprocess.html
-    https://docs.python.org/3/library/subprocess.html 
-    Execute and handle errors with subprocess, outputting stderr instead of the subprocess CalledProcessError
-    """
-
-    if cmd[0] == "java":
-        prog = cmd[2].split("/")[-1] + " " + cmd[3]
-        param = cmd[4:]
-    elif cmd[0] == "samtools" or cmd[0] == "bwa" or cmd[0] == "gatk":
-        prog = " ".join(cmd[0:2])
-        param = cmd[3:]
-    else:
-        prog = cmd[0]
-        param = cmd[1:]
-
-    try:
-        command = subprocess.run(
-            cmd, shell=isShell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if command.returncode != 0:
-            print("Command %s FAILED\n" % prog +
-                        + "WITH PARAMETERS: " +
-                         " ".join(param) + "\n"
-                        + "EXIT-CODE: %d\n" % command.returncode +
-                        "ERROR:\n" + command.stderr.decode().strip())
-
-    except OSError as e:
-        sys.exit( "failed to execute program '%s': %s" % (prog, str(e)) )
-
-def extract_read_list(input_dir):
-    """
-    Search files in a directory sort by name and extract comon name of R1 and R2
-    with extract_sample() function
-    190615 - Limit only parent folder, not subdirectories
-    """
-    input_dir = os.path.abspath(input_dir)
-    all_fasta = []
-    r1_list = []
-    r2_list = []
-    for root, _, files in os.walk(input_dir):
-        if root == input_dir:  # This only apply to parent folder, not subdirectories
-            for name in files:
-                filename = os.path.join(root, name)
-                is_fasta = re.match(r'.*\.f(ast)*[aq](\.gz)*', filename)
-                if is_fasta:
-                    all_fasta.append(filename)
-    all_fasta = sorted(all_fasta)
-    if len(all_fasta) % 2 == 0:
-        for index, fasta_file in enumerate(all_fasta):
-            if index % 2 == 0:
-                r1_list.append(fasta_file)
-            elif index % 1 == 0:
-                r2_list.append(fasta_file)
- 
-    r1_list = sorted(r1_list)
-    r2_list = sorted(r2_list)
-
-    return r1_list, r2_list
-
-def extract_sample(R1_file, R2_file):
-    """
-    Extract sample from R1, R2 files.
-    """
-    basename_R1 = os.path.basename(R1_file)
-    basename_R2 = os.path.basename(R2_file)
-
-    sample_name_R = os.path.commonprefix([basename_R1, basename_R2])
-
-    long_suffix = re.search('_S.*', sample_name_R)
-    short_suffix = re.search('_R.*', sample_name_R)
-    bar_suffix = re.search('_$', sample_name_R)
-    dot_suffix = re.search('.R$', sample_name_R)
-
-    if long_suffix:
-        match = long_suffix.group()
-        sample_name = sample_name_R.split(match)[0]
-    elif short_suffix:
-        match = short_suffix.group()
-        sample_name = sample_name_R.split(match)[0]
-    elif bar_suffix:
-        match = bar_suffix.group()
-        sample_name = sample_name_R.rstrip("_")
-    elif dot_suffix:
-        match = dot_suffix.group()
-        sample_name = sample_name_R.rstrip(".R")
-    else:
-        sample_name = sample_name_R
-
-    return sample_name
-
-def fastqc_quality(r1, r2, output_dir, threads):
-    check_create_dir(output_dir)
-
-    cmd = ['fastqc', r1, r2, '-o', output_dir, '--threads', str(threads)]
-
-    execute_subprocess(cmd)
-
-def fastp_trimming(r1, r2, sample, output_dir, threads, min_qual, window_size, min_len):
-    check_create_dir(output_dir)
-
-    output_trimmed_r1 = os.path.join(
-        output_dir, sample + ".trimmed_R1.fastq.gz")
-    output_trimmed_r2 = os.path.join(
-        output_dir, sample + ".trimmed_R2.fastq.gz")
-
-    html_dir = os.path.join(output_dir, 'html')
-    json_dir = os.path.join(output_dir, 'json')
-
-    check_create_dir(html_dir)
-    check_create_dir(json_dir)
-
-    html_file = os.path.join(html_dir, sample + '_fastp.html')
-    json_file = os.path.join(json_dir, sample + '_fastp.json')
-
-    cmd = ['fastp',
-           '--in1', r1,
-           '--in2', r2,
-           '--out1', output_trimmed_r1,
-           '--out2', output_trimmed_r2,
-           '--detect_adapter_for_pe',
-           '--cut_tail',
-           '--cut_window_size', str(window_size),
-           '--cut_mean_quality', str(min_qual),
-           '--length_required', str(min_len),
-           '--json', json_file,
-           '--html', html_file,
-           '--thread', str(threads)]
-
-    execute_subprocess(cmd)
-
-def bwa_mapping(r1, r2, reference, sample, output_dir, threads=8):
-    """
-    #Store output in a file when it is outputted in stdout
-    https://stackoverflow.com/questions/4965159/how-to-redirect-output-with-subprocess-in-python
-    """
-    r1 = os.path.abspath(r1)
-    r2 = os.path.abspath(r2)
-    reference = os.path.abspath(reference)
-
-    sample_name = sample + ".sam"
-    output_file = os.path.join(output_dir, sample_name)
-
-    check_create_dir(output_dir)
-    
-    cmd_index = ["bwa", "index", reference]
-    execute_subprocess(cmd_index)
-    
-    cmd_map = ["bwa", "mem", "-Y", "-M", "-t", str(threads), "-o", output_file, reference, r1, r2]
-    execute_subprocess(cmd_map)
-
-def sam_to_index_bam(sample, output_dir, r1, threads):
-
-    sample_name = sample + ".sam"
-    input_sam_path = os.path.join(output_dir, sample_name)
-
-    input_name = (".").join(os.path.basename(input_sam_path).split(".")[:-1])
-
-    output_bam_name = input_name + ".bam"
-    output_bam_path = os.path.join(output_dir, output_bam_name)
-
-    output_sorted_name = input_name + ".sorted.bam"
-    output_sorted_path = os.path.join(output_dir, output_sorted_name)
-
-    output_bg_sorted_name = input_name + ".rg.sorted.bam"
-    output_bg_sorted_path = os.path.join(output_dir, output_bg_sorted_name)
-
-    cmd_view = ["samtools", "view", "-Sb", input_sam_path, "--threads", str(threads), "-o", output_bam_path,]
-    execute_subprocess(cmd_view)
-
-    check_remove_file(input_sam_path)
-    
-    cmd_sort = ["samtools", "sort", output_bam_path, "-o", output_sorted_path]
-    execute_subprocess(cmd_sort)
-
-    check_remove_file(output_bam_path)
-
-    add_SG(sample, output_sorted_path, output_bg_sorted_path, r1)
-
-    check_remove_file(output_sorted_path)
-
-def add_SG(sample, input_bam, output_bg_sorted, r1):
-    """
-    @MN00227:45:000H255J3:1:11102:21214:1110 1:N:0:18
-    @NS500454:48:HKG57BGXX:1:11101:17089:1032 2:N:0:TCCTGAGC+TCTTACGC
-    @NS500454:27:HJJ32BGXX:1:11101:12392:1099 1:N:0:2
-    @<instrument>:<run number>:<flowcell ID>:<lane>:<tile>:<x-pos>:<y-pos> <read>:
-    <is filtered>:<control number>:<sample number | barcode1'+barcode2'>
-    ID = Read group identifier {FLOWCELL_BARCODE}.{LANE}.{SAMPLE_BARCODE} 
-    PU = Platform Unit #optional
-    SM = Sample
-    PL = Platform/technology used to produce the read (ILLUMINA, SOLID, LS454, HELICOS and PACBIO)
-    LB = DNA preparation library identifier
-    """
-
-    with gzip.open(r1) as f:
-        first_line = f.readline().strip().decode()
-    #print(first_line)
-    first_line_list = first_line.split(":")
-    if len(first_line_list) > 4:
-        rg_id = ".".join([first_line_list[2],first_line_list[3],first_line_list[-1]])
-        rg_pu = ".".join([first_line_list[2],first_line_list[3],first_line_list[-1]])
-    else:
-        rg_id = first_line_list[0]
-        rg_pu = first_line_list[0]
-    rg_sm = sample
-    rg_pl = "ILLUMINA"
-    rg_lb = "lib_" + sample
-
-    rg_id_param = "RGID=" + rg_id
-    rg_pu_param = "RGPU=" + rg_pu
-    rg_sm_param = "RGSM=" + rg_sm
-    rg_pl_param = "RGPL=" + rg_pl
-    rg_lb_param = "RGLB=" + rg_lb
-
-    input_param = "INPUT=" + input_bam
-    output_param = "OUTPUT=" + output_bg_sorted
-
-
-    cmd = ["picard", "AddOrReplaceReadGroups", 
-    input_param, output_param, rg_id_param, rg_lb_param, rg_pl_param, rg_pu_param, rg_sm_param,
-    "SORT_ORDER=coordinate"]
-    execute_subprocess(cmd)
-
-def picard_markdup(input_bam):
-    
-    input_bam = os.path.abspath(input_bam)
-    
-    path_file_name = input_bam.split(".")[0]
-    file_name = input_bam.split("/")[-1]
-    output_markdup = path_file_name + ".rg.markdup.bam"
-    output_markdup_sorted = path_file_name + ".rg.markdup.sorted.bam"
-
-    output_dir = ('/').join(input_bam.split('/')[0:-1])
-    stat_output_dir = os.path.join(output_dir, "Stats")
-    stat_output_file = file_name + ".markdup.metrics.txt"
-    stat_output_full = os.path.join(stat_output_dir, stat_output_file)
-
-    check_create_dir(stat_output_dir)
-
-    cmd_markdup = ["picard", "MarkDuplicates", "-I", input_bam, "-O", output_markdup, "-M", stat_output_full]
-    execute_subprocess(cmd_markdup)
-    
-    #samtools sort: samtools sort $output_dir/$sample".sorted.bam" -o $output_dir/$sample".sorted.bam"
-    cmd_sort = ["samtools", "sort", output_markdup, "-o", output_markdup_sorted]
-    execute_subprocess(cmd_sort)
-
-    check_remove_file(input_bam)
-    check_remove_file(output_markdup)
-
-def ivar_trim(input_bam, primers_file, sample, min_length=30, min_quality=20, sliding_window_width=4):
-    """
-    Usage: ivar trim -i <input.bam> -b <primers.bed> -p <prefix> [-m <min-length>] [-q <min-quality>] [-s <sliding-window-width>]
-        Input Options    Description
-           -i    (Required) Sorted bam file, with aligned reads, to trim primers and quality
-           -b    (Required) BED file with primer sequences and positions
-           -m    Minimum length of read to retain after trimming (Default: 30)
-           -q    Minimum quality threshold for sliding window to pass (Default: 20)
-           -s    Width of sliding window (Default: 4)
-           -e    Include reads with no primers. By default, reads with no primers are excluded
-        Output Options   Description
-           -p    (Required) Prefix for the output BAM file
-    """
-    
-    input_bam = os.path.abspath(input_bam)
-    input_bai = input_bam + ".bai"
-    primers_file = os.path.abspath(primers_file)
-
-    prefix = input_bam.split('.')[0] + ".rg.markdup.trimmed"
-    output_trimmed_bam = prefix + ".bam"
-    output_trimmed_sorted_bam = input_bam.split('.')[0] + ".rg.markdup.trimmed.sorted.bam"
-    
-    cmd = ["ivar", "trim", "-i", input_bam, "-b", primers_file, "-p", prefix, "-m", str(min_length), "-q", str(min_quality), "-s", str(sliding_window_width), "-e"]
-    execute_subprocess(cmd)
-
-    check_remove_file(input_bam)
-
-    cmd_sort = ["samtools", "sort", output_trimmed_bam, "-o", output_trimmed_sorted_bam]
-    execute_subprocess(cmd_sort)
-
-    check_remove_file(output_trimmed_bam)
-
-    cmd_index = ["samtools", "index", output_trimmed_sorted_bam]
-    execute_subprocess(cmd_index)
-
-    check_remove_file(input_bai)
-
-def ivar_variants(reference, input_bam, output_variant, sample, min_quality=20, min_frequency_threshold=0.8, min_depth=20):
-    """
-    Usage: samtools mpileup -aa -A -d 0 -B -Q 0 --reference [<reference-fasta] <input.bam> | ivar variants -p <prefix> [-q <min-quality>] [-t <min-frequency-threshold>] [-m <minimum depth>] [-r <reference-fasta>] [-g GFF file]
-        Note : samtools mpileup output must be piped into ivar variants
-        Input Options    Description
-           -q    Minimum quality score threshold to count base (Default: 20)
-           -t    Minimum frequency threshold(0 - 1) to call variants (Default: 0.03)
-           -m    Minimum read depth to call variants (Default: 0)
-           -r    Reference file used for alignment. This is used to translate the nucleotide sequences and identify intra host single nucleotide variants
-           -g    A GFF file in the GFF3 format can be supplied to specify coordinates of open reading frames (ORFs). In absence of GFF file, amino acid translation will not be done.
-        Output Options   Description
-           -p    (Required) Prefix for the output tsv variant file
-    """
-    ivar_folder = output_variant
-    check_create_dir(ivar_folder)
-    prefix = ivar_folder + '/' + sample
-
-    input = {'reference' : reference,
-            'input_bam': input_bam,
-            'prefix' : prefix,
-            'min_quality': str(min_quality),
-            'min_frequency_threshold': str(min_frequency_threshold),
-            'min_depth': str(min_depth)}
-
-
-    cmd = "samtools mpileup -aa -A -d 0 -B -Q 0 --reference {reference} {input_bam} | \
-        ivar variants -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -r {reference}".format(**input)
-
-    execute_subprocess(cmd, isShell=True)
-
-def ivar_consensus(input_bam, output_consensus, sample, min_quality=20, min_frequency_threshold=0.8, min_depth=20, uncovered_character='N'):
-    """
-    ivar consensus
-        Usage: samtools mpileup -aa -A -d 0 -Q 0 <input.bam> | ivar consensus -p <prefix> 
-        Note : samtools mpileup output must be piped into ivar consensus
-        Input Options    Description
-           -q    Minimum quality score threshold to count base (Default: 20)
-           -t    Minimum frequency threshold(0 - 1) to call consensus. (Default: 0)
-                 Frequently used thresholds | Description
-                 ---------------------------|------------
-                                          0 | Majority or most common base
-                                        0.2 | Bases that make up atleast 20% of the depth at a position
-                                        0.5 | Strict or bases that make up atleast 50% of the depth at a position
-                                        0.9 | Strict or bases that make up atleast 90% of the depth at a position
-                                          1 | Identical or bases that make up 100% of the depth at a position. Will have highest ambiguities
-           -m    Minimum depth to call consensus(Default: 10)
-           -k    If '-k' flag is added, regions with depth less than minimum depth will not be added to the consensus sequence. Using '-k' will override any option specified using -n 
-           -n    (N/-) Character to print in regions with less than minimum coverage(Default: N)
-        Output Options   Description
-           -p    (Required) Prefix for the output fasta file and quality file
-    """
-
-    prefix = output_consensus + '/' + sample
-
-    input = {'input_bam': input_bam,
-            'prefix' : prefix,
-            'min_quality': str(min_quality),
-            'min_frequency_threshold': str(min_frequency_threshold),
-            'min_depth': str(min_depth),
-            'uncovered_character': uncovered_character}
-
-    cmd = "samtools mpileup -aa -A -d 0 -B -Q 0  {input_bam} | \
-        ivar consensus -p {prefix} -q {min_quality} -t {min_frequency_threshold} -m {min_depth} -n {uncovered_character}".format(**input)
-
-    execute_subprocess(cmd, isShell=True)
-
-def replace_consensus_header(input_fasta):
-    with open(input_fasta, 'r+') as f:
-        content = f.read()
-        header = content.split('\n')[0].strip('>')
-        new_header = header.split('_')[1].strip()
-        content = content.replace(header, new_header)
-        f.seek(0)
-        f.write(content)
-        f.truncate()
-
-def create_bamstat(input_bam, output_dir, sample, threads=8):
-    output_file = os.path.join(output_dir, sample + ".bamstats")
-    cmd = "samtools flagstat --threads {} {} > {}".format(str(threads), input_bam, output_file)
-    execute_subprocess(cmd, isShell=True)
-
-def create_coverage(input_bam, output_dir, sample):
-    output_file = os.path.join(output_dir, sample + ".cov")
-    cmd = "samtools depth -aa {} > {}".format(input_bam, output_file)
-    execute_subprocess(cmd, isShell=True)
 
 # check if directory exists
 def check_create_dir(path):
@@ -388,13 +14,6 @@ def check_create_dir(path):
         pass
     else:
         os.mkdir(path)
-
-def check_remove_file(file_name):
-    """
-    Check file exist and remove it.
-    """
-    if os.path.exists(file_name):
-        os.remove(file_name)
 
 # check fasta
 def check_arg(args, script_dir):
@@ -414,16 +33,34 @@ def check_arg(args, script_dir):
     return 0
 
 # check initial arguments
-def check_argmunets(args):
+def check_argmunets(args, script_dir):
 
     # Check mutation directory
-    if not os.path.isdir(args.input_dir):
-        print("%s: No such file or directory" %args.input_dir)
+    mut_dir = os.path.join(script_dir, "mutations")
+    if not os.path.isdir(mut_dir):
+        print("%s: No such file or directory" %mut_dir)
         return 1
     
     # Check reference genome
-    if not os.path.isfile(args.reference):
-        print("%s: No such file or directory" %args.reference)
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
+    if not os.path.isfile(ref_genome):
+        print("%s: No such file or directory" %ref_genome)
+        return 1
+    
+    # Check gff file
+    gff_file = os.path.join(script_dir, "NC_045512.2.gff3")
+    if not os.path.isfile(gff_file):
+        print("%s: No such file or directory" %gff_file)
+        return 1
+    
+    # Check bam files
+    if not os.path.isfile(args.bamfile):
+        print("%s: No such file or directory" %args.bamfile)
+        return 1
+    
+    # Check cov files
+    if not os.path.isfile(args.covfile):
+        print("%s: No such file or directory" %args.covfile)
         return 1
     
     # If all OK
@@ -575,11 +212,10 @@ def plot_proportions(HTZ_SNVs, name_stats_file, variant = False):
     plt.savefig("%s.png" %(name_stats_file)) 
 
 
-def quality_control(df, args, name_tsv, dir_name_tsv):
+def quality_control(df, args, mutations, name_tsv, dir_name_tsv):
 
     # out_dir_stats
-    name_tsv_stats = os.path.join(dir_name_tsv, name_tsv)
-    dir_name_tsv_stats = os.path.join(name_tsv_stats, "Stats")
+    dir_name_tsv_stats = os.path.join(dir_name_tsv, "Stats")
     check_create_dir(dir_name_tsv_stats)
 
     # stats file
@@ -637,6 +273,8 @@ def quality_control(df, args, name_tsv, dir_name_tsv):
             row += ["1"]
         else:
             row += ["0"]
+        # if mean_ALT_HTZ_prop < 0.75 and std_ALT_HTZ_prop <= args.max_std_htz and SNPs_in_mean_limits >= (1 - args.SNPs_out):
+        #     points += 1
     
     else:
         row += ["0"] * (len(row) - 1)
@@ -648,7 +286,7 @@ def quality_control(df, args, name_tsv, dir_name_tsv):
         fields += ["Min_pangolin", "Min_conflict", "Max_pangolin", "Max_conflict"]
 
         # parse pangolin files
-        out_seq_dir = os.path.join(name_tsv_stats, "Sequences")
+        out_seq_dir = os.path.join(dir_name_tsv, "Sequences")
         min_file = os.path.join(out_seq_dir, name_tsv + "_1_pangolin.csv")
         min_df = pd.read_csv(min_file, sep=",")
         row += [str(min_df["lineage"].values[0]), str(min_df["conflict"].values[0])]
@@ -657,6 +295,38 @@ def quality_control(df, args, name_tsv, dir_name_tsv):
         max_df = pd.read_csv(max_file, sep=",")
         row += [str(max_df["lineage"].values[0]), str(max_df["conflict"].values[0])]
 
+        # if min_df["conflict"].values[0] == 0 and max_df["conflict"].values[0] == 0:
+        #     points += 1
+    
+    ##### HTZ DISTRIBUTION
+    # number htz not related to lineage
+    not_lineage_HTZ_SNVs = HTZ_SNVs[(HTZ_SNVs["LINEAGE"] == "") & 
+                            ((HTZ_SNVs["REF_FREQ"] > args.ambiguity) |
+                                ((HTZ_SNVs["ALT_FREQ"] > args.ambiguity)))]
+
+    max_index = not_lineage_HTZ_SNVs[["ALT_FREQ", "REF_FREQ"]].idxmax(axis=1).to_list()
+    
+    fields += ["N_SNPs_not_lineage", "%_SNPs_not_lineage", "N_SNPs_min", "N_SNPs_max"]
+
+    if len(max_index):
+
+        row += [str(len(max_index)), str(round(len(max_index)/n_HTZ_SNPs, 2)),
+                str(round(max_index.count("REF_FREQ") / len(max_index), 2)),
+                str(round(max_index.count("ALT_FREQ") / len(max_index), 2))]
+        
+        # if len(max_index) > 5 and \
+        #     round(max_index.count("REF_FREQ") / len(max_index), 2) > max_prop:
+        #     points -= 3 
+
+        # elif round(max_index.count("REF_FREQ") / len(max_index), 2) <= max_prop and \
+        #         round(max_index.count("ALT_FREQ") / len(max_index), 2) <= max_prop:
+        #     points += 1
+    else:
+        row += ["0", "0", "0", "0"]
+    
+    # fields += ["Points"]
+    # row += [str(points)]
+
     #### WRITE FILE
     to_write = ",".join(fields) + "\n" + ",".join(row) + "\n"
     stats_file.write(to_write)
@@ -664,6 +334,85 @@ def quality_control(df, args, name_tsv, dir_name_tsv):
 
     # plot HTZ pos
     plot_proportions(HTZ_SNVs, name_stats_file)
+
+def include_lineages(args, df_aln_SNV, mutations):
+    l_SNPs = {}
+
+    for variant in mutations:
+        # BA.2
+
+        # List to store mutations asociated to the lineage
+        l_SNPs[variant] = []
+
+        # Positions associated with the lineage
+        mut_dict = mutations[variant]
+
+        for i in range(len(df_aln_SNV.columns)):
+
+            pos = list(df_aln_SNV.columns)[i]
+
+            if pos in mut_dict:
+                l_SNPs[variant].append(variant)
+            else:
+                l_SNPs[variant].append("")
+
+    # Create pandas Dataframe with positions
+    l_SNPs_df = pd.DataFrame()
+    for variant in mutations:
+        l_SNPs_df[variant] = l_SNPs[variant]
+    l_SNPs_df.index = df_aln_SNV.columns
+
+    # Concatenate with SNP alignment
+    df_concat = pd.concat([df_aln_SNV, l_SNPs_df.T], sort=False)
+
+    return df_concat
+
+def mini_compare(aln_name):
+
+    # Parse alingment
+    l_samples = {}
+
+    # aln directory
+    aln_dir = os.path.dirname(aln_name)
+
+    # Parse alingment
+    f = open(aln_name, "r")
+    header = ""
+    ref_sequence = ""
+    for line in f:
+        if line.startswith(">"):
+            if header != "":
+                l_samples[header] = list(ref_sequence)
+            header = line.strip().split(" ")[0][1:]
+            ref_sequence = ""
+        else:
+            ref_sequence += line.strip().upper()
+    l_samples[header] = list(ref_sequence)
+    f.close()
+
+    df_episodes = pd.DataFrame(list(l_samples.values()), index = l_samples.keys()).T
+    
+    # COMAPARE ROWS
+    samples = list(df_episodes.columns[1:])
+    row = len(samples)
+    matrix = np.zeros((row, row))
+
+    for i in range(len(samples)):
+        column = samples[i]
+
+        for e in range(len(samples)):
+            c = samples[e]
+
+            # Fill the matrix
+
+            matrix[e, i] = sum(
+                (df_episodes[column] != df_episodes[c]) & 
+            ((df_episodes[column] != "N") & (df_episodes[column] != "-")) &
+             (df_episodes[c] != "N") & (df_episodes[c] != "-")
+                )
+
+    compare_df = pd.DataFrame(matrix, columns=samples, index=samples)    
+    compare_df.to_csv(os.path.join(aln_dir, "episode_compare.csv"), sep=",")
 
 def color_df(row):
 
@@ -702,10 +451,85 @@ def color_df(row):
 
     return l_colors
 
-def fasta2compare(args, out_seq_dir, name_fasta):
+def parse_mut(mut_dir, args):
+
+    # Dictionary to store mutations
+    d_mut = {}
+
+    # List mutation files
+    mut_files = [file for file in os.listdir(mut_dir) if file.endswith(".csv")]
+
+    # Parse files to get mutations
+    for file in mut_files:
+        d_var = {}
+        variant = ".".join(file.split(".")[:-1])
+
+        f = open(os.path.join(mut_dir, file), "r")
+        for l in f:
+            line = l.strip().replace('"', '').split(",")
+
+            # aminoacid mutation (A34L)
+            aa_mut = line[0]
+            # base mutation (A3456G)
+            base_mut = line[1]
+
+            # if indel skip
+            if base_mut.startswith("-"):
+                continue
+
+            # Position in genome (3456)
+            pos = int(line[1][1:-1])
+            # Store -> {3456: [A34L, A3456G]}
+            d_var[pos] = [aa_mut, base_mut]
+        f.close()
+
+        # Store mutations related to variant
+        # {BA.1: {3456: [A34L, A3456G]}}
+        d_mut[variant] = d_var
+    
+    return d_mut
+
+def indetify_variants(df, mutations):
+
+    # List to store lineages
+    lineage = []
+
+    # Label SNVs
+    for i in range(len(df.POS)):
+        pos = list(df.POS)[i]
+
+        for variant in mutations:
+            #variant: BA.2
+
+            # variant mutations
+            mut_dict = mutations[variant]
+
+            if not pos in list(mut_dict.keys()):
+                if len(lineage) < df.shape[0]:
+                    lineage.append([])
+            
+            else:
+                pos_dict = mut_dict[pos]
+                ref = pos_dict[1][0]
+                alt = pos_dict[1][-1]
+
+                if ref == list(df.REF)[i] and alt == list(df.ALT)[i]:
+                    if len(lineage) < df.shape[0]:
+                        lineage.append([variant])
+
+                    else:
+                        lineage[i] += [variant]
+    
+    # If not lineages
+    if len(lineage) == 0:
+        lineage = [[]] * len(df.POS)
+
+    return lineage
+
+def fasta2compare(script_dir, args, out_seq_dir, name_fasta):
 
     # ref genome
-    ref_genome = args.reference
+    ref_genome = os.path.join(script_dir, "COVID_ref.fasta")
 
     # Get tsv
     df = get_SNPs_fasta(ref_genome, out_seq_dir, name_fasta)
