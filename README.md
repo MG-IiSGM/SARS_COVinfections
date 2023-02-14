@@ -6,15 +6,22 @@ In each specimen, the pipeline identifies genome positions where alternate allel
 
 To run the pipeline. First you need to install the conda environment via `SARS_COVinfections.yml`. Once installed, run the code:
 
+## 1. Activate conda environment
+
 ```{bash, eval=FALSE}
 conda activate covidma
+```
+
+## 2. Run python pipeline
+
+```
 
 python Cov-infection.py -i "FASTQ_DIR" \
   -r "REF_GENOME" -o "OUTPUT_DIR" \
   -t "THREADS" -p "PRIMERS_Artic"
 ```
 
-Additional options:
+### Optionar arguments:
 
 ```
 --min_DP: minimum frequency (depth) to accept a SNP.
@@ -28,6 +35,8 @@ To see all available options:
 ```
 python Cov-infection.py -h
 ```
+
+## Output generated
 
 The output directories created are:
 
