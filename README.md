@@ -35,9 +35,9 @@ The output directories created are:
 * Consensus: 
   * ivar consensus fasta
   * FASTQ_name folder: 
-                                  * ALN: Visual representation of HTZ positions.
-                                  * Sequences: Mayority (2) and Minority (1) sequences.
-                                  * Stats: Co-infection stats.
+    * ALN: Visual representation of HTZ positions.
+    * Sequences: Mayority (2) and Minority (1) sequences.
+    * Stats: Co-infection stats.
 * Quality: Fastq quality.
 * Stats: Coverage and Bam stats.
 * Trimmed: Fastq trimmed.
