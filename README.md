@@ -33,8 +33,8 @@ The output directories created are:
 
 * Bam: Bam file with reads mapped to reference.
 * Consensus: 
-            * ivar consensus fasta
-            * FASTQ_name folder: 
+  * ivar consensus fasta
+  * FASTQ_name folder: 
                                   * ALN: Visual representation of HTZ positions.
                                   * Sequences: Mayority (2) and Minority (1) sequences.
                                   * Stats: Co-infection stats.
