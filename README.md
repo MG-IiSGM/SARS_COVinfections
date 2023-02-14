@@ -6,7 +6,7 @@ In each specimen, the pipeline identifies genome positions where alternate allel
 
 To run the pipeline. You first need to install the conda environment thourgh `SARS_COVinfections.yml`. Once installed, to run the code:
 
-```
+```{bash, eval=FALSE}
 conda activate covidma
 
 python Cov-infection.py -i "FASTQ_DIR" \
