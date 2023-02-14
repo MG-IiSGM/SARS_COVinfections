@@ -53,17 +53,17 @@ The output directories created are
 
 * **Bam**: Bam file with reads mapped to reference.
 
-* * * Consensus**: 
+* **Consensus**: 
   * ivar consensus fasta
   * Co-infection output** FASTQ_name folder: 
     * ALN: Visual representation of HTZ positions.
     * Sequences: Majority (2) and Minority (1) sequences.
     * Stats: Co-infection statistics.
 
-* Quality: Fastq quality.
+* **Quality**: Fastq quality.
 
-* Stats: Coverage and bam stats.
+* **Stats**: Coverage and bam stats.
 
-* Trimmed: Fastq trimmed.
+* **Trimmed**: Fastq trimmed.
 
-* Variants: tsv file with SNVs.
+* **Variants**: tsv file with SNVs.
