@@ -32,7 +32,7 @@ python Cov-infection.py -h
 The output directories created are:
 
 * Bam: Bam file with reads mapped to reference.
-* 
+
 * Consensus: 
   * ivar consensus fasta
   * FASTQ_name folder: 
