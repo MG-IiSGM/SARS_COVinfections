@@ -2,13 +2,11 @@
 
 A *co-infection detection pipeline* focusing on SNP call frequencies. 
 
-In each sample, the pipeline identifies genomic positions where the alternative allele frequency is ≥85% (homozygous SNPs); positions where more than one allele coexists and the major allele frequency is between 15 and 85% (heterozygous SNPs); and positions where the alternative allele is ≤15% and is considered background sequencing noise and therefore excluded.
-
-To run the pipeline. First you need to install the conda environment via `SARS_COVinfections.yml`. Once installed, run the code:
+In each sample, the pipeline consider genomic positions where the alternative allele frequency is ≥85% (homozygous SNPs); positions where more than one allele coexists and the major allele frequency is between 15 and 85% (heterozygous SNPs); and positions where the alternative allele is ≤15% and is considered background sequencing noise and therefore excluded.
 
 ## 1. Install and activate conda environment
 
-```{bash, eval=FALSE}
+```
 conda env update -n sars_covinf --file SARS_COVinfections.yml
 conda activate sars_covinf
 ```
@@ -16,7 +14,6 @@ conda activate sars_covinf
 ## 2. Run the python pipeline
 
 ```
-
 python Cov-infection.py -i test_fastq \
   -r reference/COVID_ref.fasta -o test \
   -t 4 -p primers/nCoV-2019.bed
