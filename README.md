@@ -6,10 +6,11 @@ In each sample, the pipeline identifies genomic positions where the alternative 
 
 To run the pipeline. First you need to install the conda environment via `SARS_COVinfections.yml`. Once installed, run the code:
 
-## 1. Activate conda environment
+## 1. Install and activate conda environment
 
 ```{bash, eval=FALSE}
-conda activate covidma
+conda env update -n sars_covinf --file sars_covinf.yaml
+conda activate sars_covinf
 ```
 
 ## 2. Run the python pipeline
