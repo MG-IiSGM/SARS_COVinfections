@@ -9,7 +9,7 @@ To run the pipeline. First you need to install the conda environment via `SARS_C
 ## 1. Install and activate conda environment
 
 ```{bash, eval=FALSE}
-conda env update -n sars_covinf --file sars_covinf.yaml
+conda env update -n sars_covinf --file SARS_COVinfections.yml
 conda activate sars_covinf
 ```
 
