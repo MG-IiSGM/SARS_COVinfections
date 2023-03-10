@@ -6,19 +6,20 @@ In each sample, the pipeline identifies genomic positions where the alternative 
 
 To run the pipeline. First you need to install the conda environment via `SARS_COVinfections.yml`. Once installed, run the code:
 
-## 1. Activate conda environment
+## 1. Install and activate conda environment
 
 ```{bash, eval=FALSE}
-conda activate covidma
+conda env update -n sars_covinf --file SARS_COVinfections.yml
+conda activate sars_covinf
 ```
 
 ## 2. Run the python pipeline
 
 ```
 
-python Cov-infection.py -i "FASTQ_DIR" \
-  -r "REF_GENOME" -o "OUTPUT_DIR" \
-  -t "THREADS" -p "PRIMERS_Artic"
+python Cov-infection.py -i test_fastq \
+  -r reference/COVID_ref.fasta -o test \
+  -t 4 -p primers/nCoV-2019.bed
 ```
 
 ### Mandatory arguments:

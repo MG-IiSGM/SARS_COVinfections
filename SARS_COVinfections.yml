@@ -1,4 +1,4 @@
-name: covidma
+name: sars_covinf
 channels:
   - bjrn
   - anaconda
@@ -350,4 +350,4 @@ dependencies:
     - webencodings==0.5.1
     - xlrd==2.0.1
     - yarl==1.7.2
-prefix: /home/laura/anaconda3/envs/covidma
+prefix: /home/laura/anaconda3/envs/sars_covinf
