@@ -7,6 +7,8 @@ In each sample, the pipeline consider genomic positions where the alternative al
 ## 1. Install and activate conda environment
 
 ```
+git clone https://github.com/MG-IiSGM/SARS_COVinfections
+cd SARS_COVinfections
 conda env update -n sars_covinf --file SARS_COVinfections.yml
 conda activate sars_covinf
 ```
