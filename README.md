@@ -17,9 +17,9 @@ conda activate sars_covinf
 
 ```
 
-python Cov-infection.py -i "FASTQ_DIR" \
-  -r "REF_GENOME" -o "OUTPUT_DIR" \
-  -t "THREADS" -p "PRIMERS_Artic"
+python Cov-infection.py -i test_fastq \
+  -r reference/COVID_ref.fasta -o test \
+  -t 4 -p primers/nCoV-2019.bed
 ```
 
 ### Mandatory arguments:
