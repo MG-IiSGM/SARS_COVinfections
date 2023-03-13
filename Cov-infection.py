@@ -1,5 +1,5 @@
 # imports
-import argparse, os, utils, mixtas, sys
+import argparse, os, utils, misc, sys
 
 # parse arguments (-B)
 parser = argparse.ArgumentParser(description="Script to infer a potential co-infection")
@@ -55,7 +55,7 @@ def main():
         name_bam = os.path.basename(ap_bamfile).rstrip(".rg.markdup.trimmed.sorted.bam")
         
         # get tsv from bam file
-        tsv_file = mixtas.bam2tsv(args.bamfile, args, script_dir, name_bam)
+        tsv_file = misc.bam2tsv(args.bamfile, args, script_dir, name_bam)
         name_tsv = os.path.basename(tsv_file).rstrip(".tsv")
         dir_name_tsv = os.path.join(args.out_dir, name_tsv)
 
@@ -67,14 +67,14 @@ def main():
         cov_d = utils.parse_covfile(args.covfile)
 
     # parse variant calling file
-    df = mixtas.parse_vcf(args, tsv_file, name_tsv, mutations)
+    df = misc.parse_vcf(args, tsv_file, name_tsv, mutations)
 
     # get alingment
-    mixtas.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
+    misc.get_alingment(args, script_dir, name_tsv, df, mutations, cov_d)
 
     # include previous or post episodes
     if args.episode:
-        mixtas.compare_episode(args, name_tsv, script_dir)
+        misc.compare_episode(args, name_tsv, script_dir)
 
     # Get stats
     utils.quality_control(df, args, mutations, name_tsv, dir_name_tsv)
