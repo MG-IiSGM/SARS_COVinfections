@@ -1,5 +1,5 @@
 # imports
-import argparse, os, utils, mixtas, sys
+import argparse, os, utils, misc, sys
 
 # parse arguments (-B)
 parser = argparse.ArgumentParser(description="Script to infer a potential co-infection")
@@ -159,10 +159,10 @@ def main():
 
 
         # parse variant calling file
-        df = mixtas.parse_vcf(args, out_ivar_variant_file)
+        df = misc.parse_vcf(args, out_ivar_variant_file)
 
         # get alingment
-        mixtas.get_alingment(args, out_consensus_dir, sample, df, out_coverage_file)
+        misc.get_alingment(args, out_consensus_dir, sample, df, out_coverage_file)
 
         # Get stats
         utils.quality_control(df, args, sample, out_consensus_dir)
