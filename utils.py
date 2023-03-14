@@ -28,12 +28,6 @@ def execute_subprocess(cmd, isShell=False):
     try:
         command = subprocess.run(
             cmd, shell=isShell, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if command.returncode != 0:
-            print("Command %s FAILED\n" % prog +
-                        + "WITH PARAMETERS: " +
-                         " ".join(param) + "\n"
-                        + "EXIT-CODE: %d\n" % command.returncode +
-                        "ERROR:\n" + command.stderr.decode().strip())
 
     except OSError as e:
         sys.exit( "failed to execute program '%s': %s" % (prog, str(e)) )
