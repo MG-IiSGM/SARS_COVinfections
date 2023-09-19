@@ -67,3 +67,7 @@ The output directories created are
 * **Trimmed**: Fastq trimmed.
 
 * **Variants**: tsv file with SNVs.
+
+## **If you use SARS_COVinfections pipeline, please cite our publication:** 
+
+[Peñas-Utrilla, D., Pérez-Lago, L., Molero-Salinas, A. et al. Systematic genomic analysis of SARS-CoV-2 co-infections throughout the pandemic and segregation of the strains involved. Genome Med 15, 57 (2023). https://doi.org/10.1186/s13073-023-01198-z](https://doi.org/10.1186/s13073-023-01198-z)
